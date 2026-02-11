@@ -1,6 +1,6 @@
 # =============================================
 # CLOUD_ALPHA_RUNNER.py
-# Final cloud execution engine for Alpha System
+# FINAL CLEAN PRODUCTION VERSION
 # =============================================
 
 import pandas as pd
@@ -20,9 +20,9 @@ OUTPUT_DIR = "output"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
-# ---------------- LOAD NIFTY (robust) ----------------
+# ---------------- LOAD NIFTY (ROBUST) ----------------
 def load_nifty():
-    for _ in range(3):  # retry download
+    for _ in range(3):
         try:
             nifty = yf.download("^NSEI", period=DATA_PERIOD, progress=False)
 
@@ -61,13 +61,19 @@ TICKERS = [
 
 # ---------------- LOAD PRICES ----------------
 def load_prices():
-    data = yf.download(TICKERS, period=DATA_PERIOD, progress=False)["Close"]
-    return data.dropna(how="all")
+    for _ in range(3):
+        try:
+            data = yf.download(TICKERS, period=DATA_PERIOD, progress=False)["Close"]
+            if data is not None and not data.empty:
+                return data.dropna(how="all")
+        except Exception:
+            continue
+
+    raise RuntimeError("Failed to download price data")
 
 
 # ---------------- MOMENTUM SCORE ----------------
 def compute_momentum(prices):
-
     mom12 = prices.pct_change(252)
     mom1 = prices.pct_change(21)
     mom6 = prices.pct_change(126)
@@ -89,7 +95,7 @@ def dummy_quality(prices):
     return pd.Series(0.5, index=prices.columns)
 
 
-# ---------------- BACKTEST CORE ----------------
+# ---------------- BACKTEST (FULLY SAFE) ----------------
 def backtest(prices, scores, nifty, quality):
 
     monthly_dates = prices.resample("ME").last().index
@@ -108,14 +114,25 @@ def backtest(prices, scores, nifty, quality):
         end_date = prices.index[prices.index <= trade_end].max()
         nifty_date = nifty.index[nifty.index <= signal_month].max()
 
-        if pd.isna(score_date) or pd.isna(start_date) or pd.isna(end_date):
+        # ---- SAFETY GUARDS ----
+        if (
+            pd.isna(score_date)
+            or pd.isna(start_date)
+            or pd.isna(end_date)
+            or pd.isna(nifty_date)
+        ):
             continue
 
-        if not nifty.loc[nifty_date, "RiskOn"]:
+        # ---- REGIME FILTER ----
+        if not bool(nifty.loc[nifty_date, "RiskOn"]):
             equity_curve.append((trade_end, capital))
             continue
 
         momentum_rank = scores.loc[score_date].dropna()
+
+        if momentum_rank.empty:
+            equity_curve.append((trade_end, capital))
+            continue
 
         combined = (
             momentum_rank.rank(pct=True) * 0.6
@@ -137,6 +154,9 @@ def backtest(prices, scores, nifty, quality):
 
         capital *= 1 + portfolio_return
         equity_curve.append((trade_end, capital))
+
+    if not equity_curve:
+        return pd.DataFrame(columns=["Equity"])
 
     equity_df = pd.DataFrame(equity_curve, columns=["Date", "Equity"]).set_index("Date")
     return equity_df
@@ -185,6 +205,9 @@ def main():
 
     equity = backtest(prices, scores, nifty, quality)
 
+    if equity.empty:
+        raise RuntimeError("Backtest produced no data")
+
     latest_scores = scores.iloc[-1].dropna()
     top = latest_scores.nlargest(TOP_N).index
 
@@ -206,7 +229,7 @@ def main():
 
     equity.to_csv(os.path.join(OUTPUT_DIR, "model_equity.csv"))
 
-    print("Cloud run complete. Files updated.")
+    print("SUCCESS — Cloud alpha engine completed.")
 
 
 if __name__ == "__main__":
