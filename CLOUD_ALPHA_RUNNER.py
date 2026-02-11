@@ -1,27 +1,47 @@
-def load_nifty():
-    for _ in range(3):  # retry 3 times
-        try:
-            nifty = yf.download("^NSEI", period=DATA_PERIOD, progress=False)
+name: Daily Alpha Engine Run
 
-            if nifty is None or nifty.empty:
-                continue
+on:
+  schedule:
+    # Runs every day at 14:30 UTC = 8:00 PM India time
+    - cron: "30 14 * * *"
 
-            close = nifty["Close"]
+  workflow_dispatch:  # allows manual run from GitHub button
 
-            if close.empty:
-                continue
+jobs:
+  run-alpha:
+    runs-on: ubuntu-latest
 
-            dma200 = close.rolling(200).mean()
-            risk_on = close > dma200
+    steps:
+      # 1️⃣ Checkout repo
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-            return pd.DataFrame({"Close": close, "RiskOn": risk_on})
+      # 2️⃣ Setup Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-        except Exception:
-            continue
+      # 3️⃣ Install dependencies
+      - name: Install dependencies
+        run: |
+          pip install pandas numpy yfinance
 
-    # final fallback → create minimal safe dataframe
-    dates = pd.date_range(end=datetime.today(), periods=300)
-    close = pd.Series(np.nan, index=dates)
-    risk_on = pd.Series(False, index=dates)
+      # 4️⃣ Run the cloud alpha engine
+      - name: Run Cloud Alpha Engine
+        run: |
+          python CLOUD_ALPHA_RUNNER.py
 
-    return pd.DataFrame({"Close": close, "RiskOn": risk_on})
+      # 5️⃣ Commit outputs ONLY if they exist (safe production logic)
+      - name: Commit updated outputs
+        run: |
+          git config --global user.name "alpha-bot"
+          git config --global user.email "alpha-bot@users.noreply.github.com"
+
+          if [ -d "output" ] && [ "$(ls -A output 2>/dev/null)" ]; then
+            git add output/*
+            git commit -m "Daily alpha engine update" || echo "No changes to commit"
+            git push
+          else
+            echo "No output files to commit"
+          fi
