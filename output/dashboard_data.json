@@ -1,0 +1,162 @@
+{
+  "regime": "RISK OFF",
+  "last_rebalance": "2026-02-28",
+  "next_rebalance": "2026-03-30",
+  "equity_dates": [
+    "2025-06-30",
+    "2025-07-31",
+    "2025-08-31",
+    "2025-09-30",
+    "2025-10-31",
+    "2025-11-30",
+    "2025-12-31",
+    "2026-01-31",
+    "2026-02-28"
+  ],
+  "equity_values": [
+    200000,
+    200000,
+    200000,
+    200000,
+    200000,
+    200000,
+    200000,
+    200000,
+    200000
+  ],
+  "nifty_values": [
+    NaN,
+    NaN,
+    NaN,
+    NaN,
+    NaN,
+    NaN,
+    NaN,
+    NaN,
+    NaN
+  ],
+  "holdings": [
+    {
+      "ticker": "SBIN",
+      "weight": 6.67
+    },
+    {
+      "ticker": "AXISBANK",
+      "weight": 6.67
+    },
+    {
+      "ticker": "MARUTI",
+      "weight": 6.67
+    },
+    {
+      "ticker": "LT",
+      "weight": 6.67
+    },
+    {
+      "ticker": "TITAN",
+      "weight": 6.67
+    },
+    {
+      "ticker": "KOTAKBANK",
+      "weight": 6.67
+    },
+    {
+      "ticker": "RELIANCE",
+      "weight": 6.67
+    },
+    {
+      "ticker": "BAJFINANCE",
+      "weight": 6.67
+    },
+    {
+      "ticker": "ICICIBANK",
+      "weight": 6.67
+    },
+    {
+      "ticker": "NTPC",
+      "weight": 6.67
+    },
+    {
+      "ticker": "ASIANPAINT",
+      "weight": 6.67
+    },
+    {
+      "ticker": "ULTRACEMCO",
+      "weight": 6.67
+    },
+    {
+      "ticker": "HDFCBANK",
+      "weight": 6.67
+    },
+    {
+      "ticker": "SUNPHARMA",
+      "weight": 6.67
+    },
+    {
+      "ticker": "HINDUNILVR",
+      "weight": 6.67
+    }
+  ],
+  "trades": [
+    {
+      "ticker": "SBIN",
+      "signal": "WAIT"
+    },
+    {
+      "ticker": "AXISBANK",
+      "signal": "HOLD"
+    },
+    {
+      "ticker": "MARUTI",
+      "signal": "HOLD"
+    },
+    {
+      "ticker": "LT",
+      "signal": "HOLD"
+    },
+    {
+      "ticker": "TITAN",
+      "signal": "HOLD"
+    },
+    {
+      "ticker": "KOTAKBANK",
+      "signal": "HOLD"
+    },
+    {
+      "ticker": "RELIANCE",
+      "signal": "HOLD"
+    },
+    {
+      "ticker": "BAJFINANCE",
+      "signal": "HOLD"
+    },
+    {
+      "ticker": "ICICIBANK",
+      "signal": "HOLD"
+    },
+    {
+      "ticker": "NTPC",
+      "signal": "HOLD"
+    },
+    {
+      "ticker": "ASIANPAINT",
+      "signal": "HOLD"
+    },
+    {
+      "ticker": "ULTRACEMCO",
+      "signal": "HOLD"
+    },
+    {
+      "ticker": "HDFCBANK",
+      "signal": "HOLD"
+    },
+    {
+      "ticker": "SUNPHARMA",
+      "signal": "HOLD"
+    },
+    {
+      "ticker": "HINDUNILVR",
+      "signal": "HOLD"
+    }
+  ]
+}
