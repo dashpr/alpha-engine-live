@@ -1,71 +1,99 @@
 <!DOCTYPE html>
-</div>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AI Alpha Engine</title>
+  <style>
+    body { font-family: Arial; background:#071021; color:#e6eef8; margin:40px; }
+    .card { background:#0f1a26; padding:20px; margin-bottom:20px; border-radius:12px; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { padding:10px; border-bottom:1px solid #1c2a36; text-align:left; }
+  </style>
+</head>
+<body>
 
+<h1>AI Alpha Engine</h1>
 
 <div class="card">
-<h2>Watchlist History</h2>
-<table id="watchTable"></table>
+  <b>Last Rebalance:</b> <span id="lastRebalance">--</span><br>
+  <b>Next Rebalance:</b> <span id="nextRebalance">--</span><br>
+  <b>Updated:</b> <span id="lastUpdated">--</span>
 </div>
 
+<div class="card">
+  <h2>AI Market Summary</h2>
+  <p id="aiSummary">Loading...</p>
+</div>
+
+<div class="card">
+  <h2>Headlines</h2>
+  <ul id="headlines"></ul>
+</div>
+
+<div class="card">
+  <h2>Watchlist History</h2>
+  <table id="watchTable"></table>
+</div>
 
 <script>
-async function loadJSON(path){
-const r = await fetch(path + "?t=" + Date.now());
-return await r.json();
+const BASE = "alpha-engine-live/output/";  // 🔴 CRITICAL FIX
+
+async function loadJSON(file){
+  const r = await fetch(BASE + file + "?t=" + Date.now());
+  return await r.json();
 }
 
-
-async function loadCSV(path){
-const r = await fetch(path + "?t=" + Date.now());
-return await r.text();
+async function loadCSV(file){
+  const r = await fetch(BASE + file + "?t=" + Date.now());
+  return await r.text();
 }
-
 
 async function init(){
-const last = await loadJSON("output/last_rebalance.json");
-const next = await loadJSON("output/next_rebalance.json");
-const upd = await loadJSON("output/last_updated.json");
-const ai = await loadJSON("output/ai_summary.json");
-const head = await loadJSON("output/headlines.json");
-const csv = await loadCSV("output/watchlist_history.csv");
 
+  // --- Load JSON data ---
+  const last = await loadJSON("last_rebalance.json");
+  const next = await loadJSON("next_rebalance.json");
+  const upd  = await loadJSON("last_updated.json");
+  const ai   = await loadJSON("ai_summary.json");
+  const head = await loadJSON("headlines.json");
 
-document.getElementById("lastRebalance").innerText = last.date;
-document.getElementById("nextRebalance").innerText = next.date;
-document.getElementById("lastUpdated").innerText = upd.timestamp;
-document.getElementById("aiSummary").innerText = ai.summary;
+  document.getElementById("lastRebalance").innerText = last.date;
+  document.getElementById("nextRebalance").innerText = next.date;
+  document.getElementById("lastUpdated").innerText = upd.timestamp;
+  document.getElementById("aiSummary").innerText = ai.summary;
 
+  // --- Headlines ---
+  const ul = document.getElementById("headlines");
+  ul.innerHTML = "";
+  head.forEach(h => {
+    const li = document.createElement("li");
+    li.textContent = h;
+    ul.appendChild(li);
+  });
 
-const ul = document.getElementById("headlines");
-ul.innerHTML = "";
-head.forEach(h => {
-const li = document.createElement("li");
-li.textContent = h;
-ul.appendChild(li);
-});
+  // --- Watchlist CSV ---
+  const csv  = await loadCSV("watchlist_history.csv");
 
+  const table = document.getElementById("watchTable");
+  table.innerHTML = "";
 
-const table = document.getElementById("watchTable");
-table.innerHTML = "";
+  const rows = csv.trim().split("\n");
 
+  rows.forEach((row, i) => {
+    const tr = document.createElement("tr");
 
-const rows = csv.trim().split("
-");
-rows.forEach((row, i) => {
-const tr = document.createElement("tr");
-row.split(",").forEach(col => {
-const cell = document.createElement(i === 0 ? "th" : "td");
-cell.textContent = col.trim();
-tr.appendChild(cell);
-});
-table.appendChild(tr);
-});
+    row.split(",").forEach(col => {
+      const cell = document.createElement(i === 0 ? "th" : "td");
+      cell.textContent = col.trim();
+      tr.appendChild(cell);
+    });
+
+    table.appendChild(tr);
+  });
 }
-
 
 init();
 </script>
-
 
 </body>
 </html>
