@@ -1,0 +1,16 @@
+{
+  "rebalance_required": true,
+  "last_signal_state": {
+    "regime": "NEUTRAL",
+    "valid_signals": [
+      "RELIANCE.NS",
+      "HDFCBANK.NS"
+    ],
+    "scores": {
+      "RELIANCE.NS": 0.72,
+      "INFY.NS": 0.55,
+      "HDFCBANK.NS": 0.63,
+      "TCS.NS": 0.48
+    }
+  }
+}

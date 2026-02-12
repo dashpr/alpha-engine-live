@@ -1,0 +1,12 @@
+{
+  "stocks": [
+    "RELIANCE.NS",
+    "HDFCBANK.NS"
+  ],
+  "weights": {
+    "RELIANCE.NS": 0.5,
+    "HDFCBANK.NS": 0.5
+  },
+  "cash": 0.0,
+  "regime": "NEUTRAL"
+}
