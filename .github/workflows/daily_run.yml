@@ -1,7 +1,6 @@
 name: Alpha Engine Daily Run
 schedule:
-- cron: '0 2 * * *'
-workflow_dispatch:
+- cron: "0 2 * * *"
 
 
 jobs:
@@ -17,7 +16,7 @@ uses: actions/checkout@v4
 - name: Setup Python
 uses: actions/setup-python@v5
 with:
-python-version: '3.11'
+python-version: "3.11"
 
 
 - name: Install dependencies
@@ -32,9 +31,9 @@ run: python CLOUD_ALPHA_RUNNER.py
 
 - name: Commit output files
 run: |
-git config user.name "github-actions"
-git config user.email "actions@github.com"
-git add output/* || true
+git config --global user.name "github-actions"
+git config --global user.email "actions@github.com"
+git add output || true
 git commit -m "Auto update alpha outputs" || echo "No changes to commit"
 git push
 ```yaml
