@@ -1,84 +1,104 @@
-<!DOCTYPE html>
-<div class="card">
-<h2>AI Market Summary</h2>
-<p id="aiSummary">Loading...</p>
-</div>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>AI Alpha Engine - Dashboard</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body{font-family:Inter,Arial,sans-serif;background:#071021;color:#e6eef8;margin:24px}
+    .card{background:#0f1a26;padding:16px;border-radius:10px;margin-bottom:16px}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th,td{padding:8px;border-bottom:1px solid #11202b}
+    .green{color:limegreen}.red{color:#ff6b6b}
+  </style>
+</head>
+<body>
+  <h1>AI Alpha Engine</h1>
 
+  <div class="card">
+    <div><strong>Last Rebalance:</strong> <span id="lastRebalance">--</span></div>
+    <div><strong>Next Rebalance:</strong> <span id="nextRebalance">--</span></div>
+    <div><strong>Updated:</strong> <span id="lastUpdated">--</span></div>
+  </div>
 
-<div class="card">
-<h2>Headlines</h2>
-<ul id="headlines"></ul>
-</div>
+  <div class="card">
+    <h3>AI Market Summary</h3>
+    <p id="aiSummary">Loading AI summary…</p>
+  </div>
 
+  <div class="card">
+    <h3>Headlines</h3>
+    <ul id="headlines"></ul>
+  </div>
 
-<div class="card">
-<h2>Watchlist History</h2>
-<table id="watchTable"></table>
-</div>
-
+  <div class="card">
+    <h3>Watchlist History</h3>
+    <table id="watchTable"></table>
+  </div>
 
 <script>
-async function loadJSON(path){
-const r = await fetch(path + "?t=" + Date.now());
-return await r.json();
+async function fetchJsonSafe(url) {
+  try {
+    const res = await fetch(url + "?t=" + Date.now());
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return await res.json();
+  } catch (err) {
+    console.warn("Failed to fetch", url, err);
+    return null;
+  }
 }
 
+async function initDashboard() {
+  // Meta files
+  const last = await fetchJsonSafe("output/last_rebalance.json");
+  const next = await fetchJsonSafe("output/next_rebalance.json");
+  const upd = await fetchJsonSafe("output/last_updated.json");
+  if (last) document.getElementById("lastRebalance").textContent = last.date || "--";
+  if (next) document.getElementById("nextRebalance").textContent = next.date || "--";
+  if (upd) document.getElementById("lastUpdated").textContent = upd.timestamp || "--";
 
-async function bindMeta(){
-const last = await loadJSON("output/last_rebalance.json");
-const next = await loadJSON("output/next_rebalance.json");
-const upd = await loadJSON("output/last_updated.json");
+  // AI summary
+  const ai = await fetchJsonSafe("output/ai_summary.json");
+  if (ai) document.getElementById("aiSummary").textContent = ai.summary || "No summary available";
 
+  // Headlines
+  const headlines = await fetchJsonSafe("output/headlines.json");
+  const ul = document.getElementById("headlines");
+  ul.innerHTML = "";
+  if (Array.isArray(headlines)) {
+    headlines.forEach(h => {
+      const li = document.createElement("li"); li.textContent = h; ul.appendChild(li);
+    });
+  } else {
+    ul.innerHTML = "<li>No headlines</li>";
+  }
 
-document.getElementById("lastRebalance").innerText = last.date;
-document.getElementById("nextRebalance").innerText = next.date;
-document.getElementById("lastUpdated").innerText = upd.timestamp;
+  // Watchlist history CSV
+  try {
+    const csvResp = await fetch("output/watchlist_history.csv?t=" + Date.now());
+    if (csvResp.ok) {
+      const txt = await csvResp.text();
+      const rows = txt.trim().split("\\n").map(r => r.split(","));
+      const table = document.getElementById("watchTable");
+      table.innerHTML = "";
+      rows.forEach((row, i) => {
+        const tr = document.createElement("tr");
+        row.forEach((cell, j) => {
+          const el = document.createElement(i === 0 ? "th" : "td");
+          el.textContent = cell;
+          tr.appendChild(el);
+        });
+        table.appendChild(tr);
+      });
+    } else {
+      document.getElementById("watchTable").innerHTML = "<tr><td>No watchlist</td></tr>";
+    }
+  } catch (e) {
+    console.warn("Watchlist load failed", e);
+  }
 }
 
-
-async function bindAI(){
-const ai = await loadJSON("output/ai_summary.json");
-document.getElementById("aiSummary").innerText = ai.summary;
-
-
-const h = await loadJSON("output/headlines.json");
-const ul = document.getElementById("headlines");
-ul.innerHTML = "";
-h.forEach(x => {
-const li = document.createElement("li");
-li.textContent = x;
-ul.appendChild(li);
-});
-}
-
-
-async function bindWatchlist(){
-const res = await fetch("output/watchlist_history.csv?t=" + Date.now());
-const text = await res.text();
-const rows = text.trim().split("\n").map(r => r.split(","));
-
-
-const table = document.getElementById("watchTable");
-table.innerHTML = "";
-
-
-rows.forEach((row,i)=>{
-const tr = document.createElement("tr");
-row.forEach(cell=>{
-const el = document.createElement(i===0?"th":"td");
-el.textContent = cell;
-tr.appendChild(el);
-});
-table.appendChild(tr);
-});
-}
-
-
-bindMeta();
-bindAI();
-bindWatchlist();
+initDashboard();
 </script>
-
-
 </body>
 </html>
