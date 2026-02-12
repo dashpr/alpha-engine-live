@@ -8,6 +8,12 @@ OUTPUT.mkdir(exist_ok=True)
 
 SYMBOLS = ["RELIANCE.NS", "INFY.NS"]
 
+# Demo fallback prices (used only if API blocked)
+FALLBACK = {
+    "RELIANCE.NS": 2900,
+    "INFY.NS": 1600,
+}
+
 prices = {}
 
 HEADERS = {
@@ -21,34 +27,37 @@ for s in SYMBOLS:
     try:
         r = requests.get(url, headers=HEADERS, timeout=10)
 
-        # If response empty or blocked → skip safely
         if r.status_code != 200 or not r.text.strip():
-            raise ValueError("Empty or blocked response")
+            raise ValueError("Blocked")
 
         data = r.json()
         result = data.get("quoteResponse", {}).get("result", [])
 
         if not result:
-            raise ValueError("No quote data")
+            raise ValueError("No data")
 
         q = result[0]
+        price = q.get("regularMarketPrice")
+
+        if price is None:
+            raise ValueError("Null price")
 
         prices[s] = {
-            "price": q.get("regularMarketPrice"),
+            "price": price,
             "change_pct": q.get("regularMarketChangePercent"),
+            "source": "live"
         }
 
-        time.sleep(1)  # avoid rate-limit
+        time.sleep(1)
 
-    except Exception as e:
-        # Never crash pipeline — store None safely
+    except Exception:
+        # Use fallback so system stays alive
         prices[s] = {
-            "price": None,
-            "change_pct": None,
-            "error": str(e)
+            "price": FALLBACK[s],
+            "change_pct": 0,
+            "source": "fallback"
         }
 
-# Always write output (even if API failed)
 (OUTPUT / "prices_live.json").write_text(json.dumps(prices, indent=2))
 
-print("Live prices update completed safely.")
+print("Prices updated with fallback protection.")
