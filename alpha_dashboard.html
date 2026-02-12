@@ -1,218 +1,88 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Alpha Engine Dashboard</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AI Alpha Engine</title>
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #071021;
-      color: #e6eef8;
-      margin: 0;
-      padding: 30px;
-    }
-
-    h1 {
-      margin-bottom: 20px;
-    }
-
-    .card {
-      background: #0f1a26;
-      padding: 20px;
-      margin-bottom: 20px;
-      border-radius: 12px;
-      box-shadow: 0 0 0 1px rgba(255,255,255,0.04);
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-    }
-
-    th, td {
-      padding: 10px;
-      border-bottom: 1px solid #1c2a36;
-      text-align: left;
-      font-size: 14px;
-    }
-
-    th {
-      color: #9fb3c8;
-      font-weight: 600;
-    }
-
-    .green { color: #22c55e; }
-    .red { color: #ef4444; }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 16px;
-    }
-
-    .metric {
-      font-size: 22px;
-      font-weight: bold;
-      margin-top: 6px;
-    }
-
-    canvas {
-      background: #071021;
-      border-radius: 8px;
-    }
-  </style>
+<style>
+body { font-family: Arial; background:#071021; color:#e6eef8; margin:30px; }
+.card { background:#0f1a26; padding:20px; margin-bottom:20px; border-radius:12px; }
+.metric { font-size:22px; font-weight:bold; margin-top:6px; }
+table { width:100%; border-collapse:collapse; margin-top:10px; }
+th, td { padding:10px; border-bottom:1px solid #1c2a36; text-align:left; }
+.green { color:#22c55e; }
+.red { color:#ef4444; }
+</style>
 </head>
+
 <body>
 
-<h1>AI Alpha Engine</h1>
+<h1>AI Alpha Engine — Phase 2A</h1>
 
-<!-- META INFO -->
+<!-- NAV CARD -->
 <div class="card">
-  <b>Last Rebalance:</b> <span id="lastRebalance">--</span><br>
-  <b>Next Rebalance:</b> <span id="nextRebalance">--</span><br>
-  <b>Updated:</b> <span id="lastUpdated">--</span>
+<h2>Portfolio NAV</h2>
+Capital: ₹<span id="capital">--</span><br/>
+Value: ₹<span id="value">--</span><br/>
+Return: <span id="return">--</span>%
 </div>
 
-<!-- PERFORMANCE METRICS -->
+<!-- PRICES -->
 <div class="card">
-  <h2>Portfolio Metrics</h2>
-  <div class="grid">
-    <div>
-      CAGR
-      <div class="metric" id="cagr">--</div>
-    </div>
-    <div>
-      Max Drawdown
-      <div class="metric" id="drawdown">--</div>
-    </div>
-    <div>
-      Sharpe Ratio
-      <div class="metric" id="sharpe">--</div>
-    </div>
-    <div>
-      Current Regime
-      <div class="metric" id="regime">--</div>
-    </div>
-  </div>
-</div>
-
-<!-- PORTFOLIO VS NIFTY -->
-<div class="card">
-  <h2>Portfolio vs NIFTY 50</h2>
-  <canvas id="equityChart" height="120"></canvas>
-</div>
-
-<!-- SELECTED STOCKS -->
-<div class="card">
-  <h2>Selected Portfolio Stocks</h2>
-  <table id="stocksTable"></table>
+<h2>Live Prices</h2>
+<table id="priceTable"></table>
 </div>
 
 <!-- AI SUMMARY -->
 <div class="card">
-  <h2>AI Market Summary</h2>
-  <p id="aiSummary">Loading...</p>
+<h2>AI Portfolio Brief</h2>
+<p id="aiText">Loading...</p>
 </div>
-
-<!-- HEADLINES -->
-<div class="card">
-  <h2>Headlines</h2>
-  <ul id="headlines"></ul>
-</div>
-
-<!-- WATCHLIST HISTORY -->
-<div class="card">
-  <h2>Watchlist History</h2>
-  <table id="watchTable"></table>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
 const BASE = "output/";
 
-async function loadJSON(file) {
+async function loadJSON(file){
   const r = await fetch(BASE + file + "?t=" + Date.now());
   return await r.json();
 }
 
-async function loadCSV(file) {
+async function loadText(file){
   const r = await fetch(BASE + file + "?t=" + Date.now());
   return await r.text();
 }
 
-function renderTable(tableId, rows) {
-  const table = document.getElementById(tableId);
-  table.innerHTML = "";
-
-  rows.forEach((row, i) => {
-    const tr = document.createElement("tr");
-    row.forEach(col => {
-      const cell = document.createElement(i === 0 ? "th" : "td");
-      cell.textContent = col;
-      tr.appendChild(cell);
-    });
-    table.appendChild(tr);
-  });
-}
-
-async function init() {
+async function init(){
   try {
-    const last = await loadJSON("last_rebalance.json");
-    const next = await loadJSON("next_rebalance.json");
-    const upd  = await loadJSON("last_updated.json");
-    const ai   = await loadJSON("ai_summary.json");
-    const head = await loadJSON("headlines.json");
 
-    document.getElementById("lastRebalance").innerText = last.date;
-    document.getElementById("nextRebalance").innerText = next.date;
-    document.getElementById("lastUpdated").innerText = upd.timestamp;
-    document.getElementById("aiSummary").innerText = ai.summary;
+    // NAV
+    const nav = await loadJSON("portfolio_nav.json");
+    document.getElementById("capital").innerText = nav.capital;
+    document.getElementById("value").innerText = nav.value;
+    document.getElementById("return").innerText = nav.return_pct;
 
-    const ul = document.getElementById("headlines");
-    ul.innerHTML = "";
-    head.forEach(h => {
-      const li = document.createElement("li");
-      li.textContent = h;
-      ul.appendChild(li);
+    // PRICES
+    const prices = await loadJSON("prices_live.json");
+    const table = document.getElementById("priceTable");
+    table.innerHTML = "<tr><th>Symbol</th><th>Price</th><th>%</th></tr>";
+
+    Object.entries(prices).forEach(([s, d]) => {
+      const cls = d.change_pct >= 0 ? "green" : "red";
+      table.innerHTML += `
+        <tr>
+          <td>${s}</td>
+          <td>${d.price ?? "-"}</td>
+          <td class="${cls}">${d.change_pct?.toFixed(2) ?? "-"}</td>
+        </tr>`;
     });
 
-    // WATCHLIST TABLE
-    const watchCSV = await loadCSV("watchlist_history.csv");
-    const watchRows = watchCSV.trim().split("\n").map(r => r.split(","));
-    renderTable("watchTable", watchRows);
+    // AI TEXT
+    const ai = await loadText("ai_portfolio.txt");
+    document.getElementById("aiText").innerText = ai;
 
-    // MOCK STOCK TABLE (replace later with engine output)
-    const stockRows = [
-      ["Symbol", "Weight", "Price", "Change"],
-      ["RELIANCE", "12%", "--", "--"],
-      ["INFY", "10%", "--", "--"]
-    ];
-    renderTable("stocksTable", stockRows);
-
-    // METRICS (mock placeholders until engine export added)
-    document.getElementById("cagr").innerText = "24%";
-    document.getElementById("drawdown").innerText = "-18%";
-    document.getElementById("sharpe").innerText = "1.3";
-    document.getElementById("regime").innerText = "Risk-On";
-
-    // SIMPLE EQUITY CHART PLACEHOLDER
-    new Chart(document.getElementById("equityChart"), {
-      type: "line",
-      data: {
-        labels: ["Start", "Mid", "Now"],
-        datasets: [
-          { label: "Portfolio", data: [100, 118, 142] },
-          { label: "NIFTY 50", data: [100, 110, 128] }
-        ]
-      }
-    });
-
-  } catch (err) {
-    console.error("Dashboard load error:", err);
+  } catch(e){
+    console.error("Dashboard load error:", e);
   }
 }
 
