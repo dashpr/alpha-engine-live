@@ -22,7 +22,7 @@ jobs:
         run: pip install requests
 
       - name: Run Block-1 test
-        run: python phase2_full/block1/run_block1.py
+        run: python phase2/runner_phase2.py
         
       - name: Commit outputs
         run: |
