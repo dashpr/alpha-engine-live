@@ -2,7 +2,6 @@ import json
 import pathlib
 
 OUTPUT = pathlib.Path("output")
-OUTPUT.mkdir(exist_ok=True)
 
 NAV = json.loads((OUTPUT / "portfolio_nav.json").read_text())
 DEPLOY = json.loads((OUTPUT / "deployment_state.json").read_text())
@@ -19,4 +18,4 @@ memo = {
 
 MEMO_FILE.write_text(json.dumps(memo, indent=2))
 
-print("Scale‑up memo generated.")
+print("Scale-up memo generated.")
