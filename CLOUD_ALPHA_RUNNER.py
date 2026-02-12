@@ -1,6 +1,5 @@
 # =============================================
-# CLOUD_ALPHA_RUNNER.py
-# FINAL CLEAN PRODUCTION VERSION
+# CLOUD_ALPHA_RUNNER.py — FINAL PRODUCTION
 # =============================================
 
 import pandas as pd
@@ -20,7 +19,7 @@ OUTPUT_DIR = "output"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
-# ---------------- LOAD NIFTY (ROBUST) ----------------
+# ---------------- LOAD NIFTY ----------------
 def load_nifty():
     for _ in range(3):
         try:
@@ -30,10 +29,6 @@ def load_nifty():
                 continue
 
             close = nifty["Close"]
-
-            if close.empty:
-                continue
-
             dma200 = close.rolling(200).mean()
             risk_on = close > dma200
 
@@ -42,12 +37,12 @@ def load_nifty():
         except Exception:
             continue
 
-    # fallback safe dataframe
+    # fallback
     dates = pd.date_range(end=datetime.today(), periods=300)
-    close = pd.Series(np.nan, index=dates)
-    risk_on = pd.Series(False, index=dates)
-
-    return pd.DataFrame({"Close": close, "RiskOn": risk_on})
+    return pd.DataFrame(
+        {"Close": np.nan, "RiskOn": False},
+        index=dates
+    )
 
 
 # ---------------- STOCK UNIVERSE ----------------
@@ -90,12 +85,12 @@ def compute_momentum(prices):
     return score
 
 
-# ---------------- DUMMY QUALITY ----------------
+# ---------------- QUALITY PLACEHOLDER ----------------
 def dummy_quality(prices):
     return pd.Series(0.5, index=prices.columns)
 
 
-# ---------------- BACKTEST (FULLY SAFE) ----------------
+# ---------------- BACKTEST ----------------
 def backtest(prices, scores, nifty, quality):
 
     monthly_dates = prices.resample("ME").last().index
@@ -114,7 +109,6 @@ def backtest(prices, scores, nifty, quality):
         end_date = prices.index[prices.index <= trade_end].max()
         nifty_date = nifty.index[nifty.index <= signal_month].max()
 
-        # ---- SAFETY GUARDS ----
         if (
             pd.isna(score_date)
             or pd.isna(start_date)
@@ -123,7 +117,7 @@ def backtest(prices, scores, nifty, quality):
         ):
             continue
 
-        # ---- REGIME FILTER ----
+        # Regime filter
         if not bool(nifty.loc[nifty_date, "RiskOn"]):
             equity_curve.append((trade_end, capital))
             continue
@@ -158,8 +152,7 @@ def backtest(prices, scores, nifty, quality):
     if not equity_curve:
         return pd.DataFrame(columns=["Equity"])
 
-    equity_df = pd.DataFrame(equity_curve, columns=["Date", "Equity"]).set_index("Date")
-    return equity_df
+    return pd.DataFrame(equity_curve, columns=["Date", "Equity"]).set_index("Date")
 
 
 # ---------------- EXECUTION SIGNALS ----------------
@@ -192,6 +185,17 @@ def execution_signals(prices, latest_top):
     return signals
 
 
+# ---------------- NaN CLEANER (CRITICAL FIX) ----------------
+def clean_nan(obj):
+    if isinstance(obj, float) and (np.isnan(obj) or np.isinf(obj)):
+        return None
+    if isinstance(obj, list):
+        return [clean_nan(x) for x in obj]
+    if isinstance(obj, dict):
+        return {k: clean_nan(v) for k, v in obj.items()}
+    return obj
+
+
 # ---------------- MAIN ----------------
 def main():
 
@@ -219,13 +223,21 @@ def main():
         "next_rebalance": str((equity.index[-1] + timedelta(days=30)).date()),
         "equity_dates": [d.strftime("%Y-%m-%d") for d in equity.index[-200:]],
         "equity_values": equity["Equity"].tail(200).round(2).tolist(),
-        "nifty_values": nifty["Close"].reindex(equity.index).ffill().tail(200).round(2).tolist(),
-        "holdings": [{"ticker": t.replace(".NS", ""), "weight": round(100 / TOP_N, 2)} for t in top],
+        "nifty_values": (
+            nifty["Close"].reindex(equity.index).ffill().tail(200).round(2).tolist()
+        ),
+        "holdings": [
+            {"ticker": t.replace(".NS", ""), "weight": round(100 / TOP_N, 2)}
+            for t in top
+        ],
         "trades": signals,
     }
 
+    # 🔒 Clean NaN → null
+    dashboard_clean = clean_nan(dashboard)
+
     with open(os.path.join(OUTPUT_DIR, "dashboard_data.json"), "w") as f:
-        json.dump(dashboard, f, indent=2)
+        json.dump(dashboard_clean, f, indent=2)
 
     equity.to_csv(os.path.join(OUTPUT_DIR, "model_equity.csv"))
 
