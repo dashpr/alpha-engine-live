@@ -21,9 +21,9 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Run Phase-2A engine
-        run: python phase2/runner_phase2.py
-
+      - name: Run Block-1 test
+        run: python phase2_full/block1/run_block1.py
+        
       - name: Commit outputs
         run: |
           git config --global user.name "github-actions"
