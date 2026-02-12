@@ -36,7 +36,8 @@
 </div>
 
 <script>
-const BASE = "alpha-engine-live/output/";  // 🔴 CRITICAL FIX
+// ✅ Correct relative base path
+const BASE = "output/";
 
 async function loadJSON(file){
   const r = await fetch(BASE + file + "?t=" + Date.now());
@@ -50,46 +51,48 @@ async function loadCSV(file){
 
 async function init(){
 
-  // --- Load JSON data ---
-  const last = await loadJSON("last_rebalance.json");
-  const next = await loadJSON("next_rebalance.json");
-  const upd  = await loadJSON("last_updated.json");
-  const ai   = await loadJSON("ai_summary.json");
-  const head = await loadJSON("headlines.json");
+  try {
+    const last = await loadJSON("last_rebalance.json");
+    const next = await loadJSON("next_rebalance.json");
+    const upd  = await loadJSON("last_updated.json");
+    const ai   = await loadJSON("ai_summary.json");
+    const head = await loadJSON("headlines.json");
 
-  document.getElementById("lastRebalance").innerText = last.date;
-  document.getElementById("nextRebalance").innerText = next.date;
-  document.getElementById("lastUpdated").innerText = upd.timestamp;
-  document.getElementById("aiSummary").innerText = ai.summary;
+    document.getElementById("lastRebalance").innerText = last.date;
+    document.getElementById("nextRebalance").innerText = next.date;
+    document.getElementById("lastUpdated").innerText = upd.timestamp;
+    document.getElementById("aiSummary").innerText = ai.summary;
 
-  // --- Headlines ---
-  const ul = document.getElementById("headlines");
-  ul.innerHTML = "";
-  head.forEach(h => {
-    const li = document.createElement("li");
-    li.textContent = h;
-    ul.appendChild(li);
-  });
-
-  // --- Watchlist CSV ---
-  const csv  = await loadCSV("watchlist_history.csv");
-
-  const table = document.getElementById("watchTable");
-  table.innerHTML = "";
-
-  const rows = csv.trim().split("\n");
-
-  rows.forEach((row, i) => {
-    const tr = document.createElement("tr");
-
-    row.split(",").forEach(col => {
-      const cell = document.createElement(i === 0 ? "th" : "td");
-      cell.textContent = col.trim();
-      tr.appendChild(cell);
+    const ul = document.getElementById("headlines");
+    ul.innerHTML = "";
+    head.forEach(h => {
+      const li = document.createElement("li");
+      li.textContent = h;
+      ul.appendChild(li);
     });
 
-    table.appendChild(tr);
-  });
+    const csv  = await loadCSV("watchlist_history.csv");
+
+    const table = document.getElementById("watchTable");
+    table.innerHTML = "";
+
+    const rows = csv.trim().split("\n");
+
+    rows.forEach((row, i) => {
+      const tr = document.createElement("tr");
+
+      row.split(",").forEach(col => {
+        const cell = document.createElement(i === 0 ? "th" : "td");
+        cell.textContent = col.trim();
+        tr.appendChild(cell);
+      });
+
+      table.appendChild(tr);
+    });
+
+  } catch (err) {
+    console.error("Dashboard load error:", err);
+  }
 }
 
 init();
