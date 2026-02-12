@@ -13,7 +13,6 @@ positions = json.loads(POSITIONS_FILE.read_text()) if POSITIONS_FILE.exists() el
 
 tranche = DEPLOY.get("last_tranche", 0)
 
-# No deployment → nothing to add
 if tranche <= 0 or not PORTFOLIO["stocks"]:
     POSITIONS_FILE.write_text(json.dumps(positions, indent=2))
     print("No tranche deployed.")
@@ -29,10 +28,7 @@ for s in PORTFOLIO["stocks"]:
     qty = per_stock / price
 
     if s not in positions:
-        positions[s] = {
-            "quantity": 0,
-            "total_cost": 0,
-        }
+        positions[s] = {"quantity": 0, "total_cost": 0}
 
     positions[s]["quantity"] += qty
     positions[s]["total_cost"] += per_stock
