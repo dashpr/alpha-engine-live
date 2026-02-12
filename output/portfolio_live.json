@@ -1,0 +1,10 @@
+{
+  "stocks": [
+    "RELIANCE.NS",
+    "INFY.NS"
+  ],
+  "weights": {
+    "RELIANCE.NS": 0.5,
+    "INFY.NS": 0.5
+  }
+}
