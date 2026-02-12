@@ -1,0 +1,12 @@
+{
+  "RELIANCE.NS": {
+    "entry_price": 2900,
+    "quantity": 34.48275862068966,
+    "allocation": 100000.0
+  },
+  "INFY.NS": {
+    "entry_price": 1600,
+    "quantity": 62.5,
+    "allocation": 100000.0
+  }
+}

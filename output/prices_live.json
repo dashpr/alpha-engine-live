@@ -1,0 +1,12 @@
+{
+  "RELIANCE.NS": {
+    "price": 2900,
+    "change_pct": 0,
+    "source": "fallback"
+  },
+  "INFY.NS": {
+    "price": 1600,
+    "change_pct": 0,
+    "source": "fallback"
+  }
+}

@@ -1,1 +1,1 @@
-Portfolio value ₹0. Return -100.0%. Regime stable.
+Portfolio value ₹200000. Return 0.0%. Regime stable.
