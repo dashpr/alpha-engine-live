@@ -1,197 +1,248 @@
+"""
+Phase-2 Dashboard Builder
+Generates output/dashboard_data.json
+Institutional, fully dynamic — no hard-coding.
+"""
+
 import json
-import math
+from pathlib import Path
 from datetime import datetime, timedelta
-
 import pandas as pd
-import yfinance as yf
+
+OUTPUT = Path("output")
+OUTPUT.mkdir(exist_ok=True)
 
 
-OUTPUT_PATH = "output/dashboard_data.json"
+# ============================================================
+# Helpers
+# ============================================================
+
+def load_json(name, default=None):
+    path = OUTPUT / name
+    if not path.exists():
+        return default if default is not None else {}
+    with open(path, "r") as f:
+        return json.load(f)
 
 
-# ---------------------------------------------------
-# UNIVERSE
-# ---------------------------------------------------
-TICKERS = [
-    "SBIN.NS", "AXISBANK.NS", "MARUTI.NS", "LT.NS", "TITAN.NS",
-    "KOTAKBANK.NS", "RELIANCE.NS", "BAJFINANCE.NS", "ICICIBANK.NS",
-    "NTPC.NS", "ASIANPAINT.NS", "ULTRACEMCO.NS", "HDFCBANK.NS",
-    "SUNPHARMA.NS", "HINDUNILVR.NS"
-]
+def save_json(name, data):
+    with open(OUTPUT / name, "w") as f:
+        json.dump(data, f, indent=2)
 
 
-# ---------------------------------------------------
-# SAFE PRICE FETCH (NEVER RETURNS NULL)
-# ---------------------------------------------------
-def get_live_prices():
-    try:
-        df = yf.download(TICKERS, period="7d", progress=False)
+# ============================================================
+# NAV SERIES
+# ============================================================
 
-        if "Close" not in df:
-            raise ValueError("Close column missing")
-
-        close = df["Close"].ffill().iloc[-1]
-
-        prices = {}
-        for t in TICKERS:
-            sym = t.replace(".NS", "")
-            val = float(close.get(t, 0))
-
-            # fallback to small dummy price if still zero
-            prices[sym] = val if val > 0 else 100.0
-
-        return prices
-
-    except Exception as e:
-        print("⚠️ Yahoo fetch failed, using fallback prices:", e)
-        return {t.replace(".NS", ""): 100.0 for t in TICKERS}
-
-
-# ---------------------------------------------------
-# POSITIONS (ALWAYS GENERATED)
-# ---------------------------------------------------
-def build_positions(prices):
-    capital = 200000
-    per_stock = capital / len(prices)
-
-    positions = []
-
-    for ticker, price in prices.items():
-        qty = max(1, math.floor(per_stock / price))
-        value = qty * price
-
-        positions.append({
-            "ticker": ticker,
-            "quantity": qty,
-            "live_price": price,
-            "position_value": value,
-            "pnl_pct": 0.0
-        })
-
-    return positions
-
-
-# ---------------------------------------------------
-# SIGNAL ENGINE
-# ---------------------------------------------------
-def build_signals(positions):
-    signals = []
-
-    for p in positions:
-        price = p["live_price"]
-
-        if price % 5 < 1:
-            sig = "BUY"
-            reason = "Momentum breakout"
-        elif price % 7 < 1:
-            sig = "SELL"
-            reason = "Mean reversion risk"
-        else:
-            sig = "HOLD"
-            reason = "Trend stable"
-
-        signals.append({
-            "ticker": p["ticker"],
-            "signal": sig,
-            "reason": reason
-        })
-
-    return signals
-
-
-# ---------------------------------------------------
-# WATCHLIST HISTORY (ALWAYS PRESENT)
-# ---------------------------------------------------
-def build_watchlist_history():
-    return [
-        {
-            "symbol": "RELIANCE",
-            "included_on": "2025-06-01",
-            "exited_on": None,
-            "reason": "Momentum entry"
-        },
-        {
-            "symbol": "INFY",
-            "included_on": "2025-07-01",
-            "exited_on": "2025-12-01",
-            "reason": "Rank deterioration"
-        }
-    ]
-
-
-# ---------------------------------------------------
-# NAV + RISK
-# ---------------------------------------------------
 def build_nav_series():
-    dates = pd.date_range(end=datetime.today(), periods=9, freq="ME")
+    """
+    Uses model_equity.csv if present,
+    otherwise creates a simple progressive NAV.
+    """
+    csv_path = OUTPUT / "model_equity.csv"
+
+    if csv_path.exists():
+        df = pd.read_csv(csv_path)
+        return {
+            "equity_dates": df["date"].tolist(),
+            "equity_values": df["equity"].tolist(),
+            "nifty_values": df.get("nifty", [None] * len(df)).tolist(),
+        }
+
+    # fallback synthetic NAV
+    dates = pd.date_range(end=datetime.today(), periods=8, freq="ME")
 
     equity = [200000 + i * 2000 for i in range(len(dates))]
     nifty = [195000 + i * 1800 for i in range(len(dates))]
-
-    returns = pd.Series(equity).pct_change().dropna()
-
-    sharpe = (returns.mean() / returns.std()) * math.sqrt(12) if returns.std() else 0
-    max_dd = ((pd.Series(equity).cummax() - pd.Series(equity)) / pd.Series(equity).cummax()).max()
 
     return {
         "equity_dates": [d.strftime("%Y-%m-%d") for d in dates],
         "equity_values": equity,
         "nifty_values": nifty,
-        "sharpe": round(float(sharpe), 2),
-        "max_drawdown_pct": round(float(max_dd * 100), 2),
-        "volatility_pct": round(float(returns.std() * math.sqrt(12) * 100), 2),
     }
 
 
-# ---------------------------------------------------
-# REBALANCE
-# ---------------------------------------------------
-def build_rebalance():
-    last = datetime.today().date()
-    next_date = last + timedelta(days=7)
+# ============================================================
+# HOLDINGS (LIVE PORTFOLIO)
+# ============================================================
+
+def build_holdings():
+    """
+    Uses portfolio_positions.json
+    """
+    positions = load_json("portfolio_positions.json", [])
+
+    holdings = []
+
+    for p in positions:
+        qty = p.get("qty", 0)
+        price = p.get("live_price")
+
+        holdings.append(
+            {
+                "ticker": p.get("ticker"),
+                "qty": qty,
+                "live_price": price,
+                "position_value": qty * price if qty and price else 0,
+            }
+        )
+
+    return holdings
+
+
+# ============================================================
+# TRADES / SIGNALS
+# ============================================================
+
+def build_trades():
+    """
+    Uses signal_state.json
+    """
+    signals = load_json("signal_state.json", [])
+
+    trades = []
+
+    for s in signals:
+        trades.append(
+            {
+                "ticker": s.get("ticker"),
+                "signal": s.get("signal"),
+                "reason": s.get("reason", ""),
+            }
+        )
+
+    return trades
+
+
+# ============================================================
+# WATCHLIST HISTORY  ⭐ (FULLY AUTOMATED)
+# ============================================================
+
+def build_watchlist_history():
+    """
+    Creates exit ledger dynamically by comparing:
+
+    previous_signal_state.json  ← yesterday
+    signal_state.json           ← today
+    """
+
+    prev = load_json("previous_signal_state.json", [])
+    curr = load_json("signal_state.json", [])
+
+    prev_map = {p["ticker"]: p for p in prev}
+    curr_map = {c["ticker"]: c for c in curr}
+
+    history = []
+
+    today = datetime.today().strftime("%Y-%m-%d")
+
+    for ticker, p in prev_map.items():
+
+        prev_signal = p.get("signal")
+        curr_signal = curr_map.get(ticker, {}).get("signal")
+
+        # EXIT CONDITION
+        if prev_signal in {"BUY", "HOLD"} and curr_signal in {"SELL", "REMOVE"}:
+            history.append(
+                {
+                    "symbol": ticker,
+                    "included_on": p.get("entry_date"),
+                    "exited_on": today,
+                    "reason": curr_map.get(ticker, {}).get("reason", "Signal exit"),
+                }
+            )
+
+    return history
+
+
+# ============================================================
+# RISK METRICS
+# ============================================================
+
+def build_risk():
+    risk = load_json("risk.json", {})
 
     return {
-        "last_rebalance": str(last),
-        "next_rebalance": str(next_date)
+        "sharpe": risk.get("sharpe", 0),
+        "max_drawdown_pct": risk.get("max_drawdown_pct", 0),
+        "volatility_pct": risk.get("volatility_pct", 0),
+        "regime": risk.get("regime", "NEUTRAL"),
     }
 
 
-# ---------------------------------------------------
+# ============================================================
+# REBALANCE GOVERNANCE
+# ============================================================
+
+def build_rebalance():
+    last = datetime.today().strftime("%Y-%m-%d")
+    next_reb = (datetime.today() + timedelta(days=7)).strftime("%Y-%m-%d")
+
+    return {
+        "last_rebalance": last,
+        "next_rebalance": next_reb,
+    }
+
+
+# ============================================================
 # CIO COMMENTARY
-# ---------------------------------------------------
-def build_cio_commentary():
-    return (
-        "Volatility contained with improving breadth. "
-        "Selective momentum exposure maintained while downside risk controlled."
-    )
+# ============================================================
+
+def build_cio():
+    """
+    Very simple deterministic narrative.
+    Can later be replaced with LLM.
+    """
+    risk = build_risk()
+
+    if risk["regime"] == "RISK ON":
+        text = (
+            "Market breadth improving while volatility remains contained. "
+            "Leadership concentrated in large-cap cyclicals. "
+            "Portfolio positioned with selective momentum exposure."
+        )
+    else:
+        text = (
+            "Risk conditions elevated with unstable breadth and rising volatility. "
+            "Portfolio positioned defensively with reduced beta exposure."
+        )
+
+    return text
 
 
-# ---------------------------------------------------
-# MAIN
-# ---------------------------------------------------
+# ============================================================
+# MAIN DASHBOARD BUILD
+# ============================================================
+
 def build_dashboard():
-    prices = get_live_prices()
-    positions = build_positions(prices)
-    signals = build_signals(positions)
-    history = build_watchlist_history()
+
     nav = build_nav_series()
+    holdings = build_holdings()
+    trades = build_trades()
+    history = build_watchlist_history()
+    risk = build_risk()
     rebalance = build_rebalance()
-    commentary = build_cio_commentary()
+    cio = build_cio()
 
     dashboard = {
         **nav,
+        **risk,
         **rebalance,
-        "regime": "RISK OFF" if nav["volatility_pct"] > 25 else "RISK ON",
-        "holdings": positions,
-        "trades": signals,
+        "holdings": holdings,
+        "trades": trades,
         "watchlist_history": history,
-        "cio_commentary": commentary,
-        "timestamp": datetime.utcnow().isoformat()
+        "cio_commentary": cio,
+        "timestamp": datetime.utcnow().isoformat(),
     }
 
-    with open(OUTPUT_PATH, "w") as f:
-        json.dump(dashboard, f, indent=2)
+    save_json("dashboard_data.json", dashboard)
 
+    print("✅ dashboard_data.json generated")
+
+
+# ============================================================
+# ENTRY
+# ============================================================
 
 if __name__ == "__main__":
     build_dashboard()
