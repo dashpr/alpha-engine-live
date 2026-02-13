@@ -1,6 +1,11 @@
 {
-  "deployed": 0,
-  "remaining": 200000,
+  "deployed": 10000.0,
+  "remaining": 190000.0,
   "weeks_elapsed": 1,
-  "drawdown": 0.0
+  "series_labels": [
+    "W1"
+  ],
+  "series_values": [
+    10000.0
+  ]
 }

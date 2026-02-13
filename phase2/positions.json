@@ -1,1 +1,18 @@
-[]
+[
+  {
+    "symbol": "RELIANCE.NS",
+    "qty": 0,
+    "avg_cost": 0,
+    "price": 0,
+    "mtm": 0,
+    "weight": 50.0
+  },
+  {
+    "symbol": "HDFCBANK.NS",
+    "qty": 0,
+    "avg_cost": 0,
+    "price": 0,
+    "mtm": 0,
+    "weight": 50.0
+  }
+]

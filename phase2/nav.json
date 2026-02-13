@@ -1,6 +1,16 @@
 {
   "capital": 200000,
-  "value": 200000,
-  "return_pct": 0.0,
-  "updated": "2026-02-13T01:22:03.891067"
+  "value": 190000.0,
+  "return_pct": -5.0,
+  "since_text": "Since inception",
+  "regime": "NEUTRAL",
+  "chart_dates": [
+    "Start",
+    "Now"
+  ],
+  "chart_values": [
+    100,
+    100
+  ],
+  "updated": "2026-02-13T01:37:38.286854"
 }
