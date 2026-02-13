@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from phase2.utils import read_json, write_json, utc_now
+from phase2.utils import read_json, write_json, ist_now
 
 STATE_FILE = "phase2/data/portfolio_state.json"
 GOV_FILE = "phase2/data/governance.json"
@@ -19,7 +19,7 @@ def regime_explainer(regime: str) -> str:
         "RISK_OFF": "Weak breadth and rising risk; defensive positioning preferred.",
     }
     return explain.get(regime, "Market regime assessment in progress.")
-    
+
 
 def run():
     state = read_json(STATE_FILE, {})
@@ -27,14 +27,14 @@ def run():
     regime = state.get("regime", "NEUTRAL")
     rebalance_required = state.get("rebalance_required", False)
 
-    now = datetime.now(timezone.utc)
-    next_eval = next_friday(now)
+    now_utc = datetime.now(timezone.utc)
+    next_eval = next_friday(now_utc)
 
     gov = {
-        "timestamp": utc_now(),
+        "timestamp": ist_now(),
         "regime": regime,
         "regime_note": regime_explainer(regime),
-        "last_rebalance": utc_now() if rebalance_required else None,
+        "last_rebalance": ist_now() if rebalance_required else None,
         "next_evaluation": next_eval.isoformat(),
         "frequency": "WEEKLY",
     }
