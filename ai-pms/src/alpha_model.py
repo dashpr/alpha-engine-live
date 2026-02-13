@@ -1,23 +1,37 @@
 import pandas as pd
+import numpy as np
+import lightgbm as lgb
+import joblib
+
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error
+
+
 class AlphaModel:
     """
     LightGBM-based weekly retrained alpha prediction model.
 
-    Predicts 1-week forward return for each stock.
+    Safe for CI:
+    - Handles insufficient data
+    - Never crashes pipeline
     """
 
     def __init__(self):
         self.model = None
         self.feature_cols = None
+        self.trained = False
 
     def _prepare_target(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
+
+        # 5-day forward return
         df["fwd_ret_5d"] = (
             df.groupby("symbol")["ret_1d"]
             .shift(-5)
             .rolling(5)
             .sum()
         )
+
         return df
 
     def _select_features(self, df: pd.DataFrame):
@@ -27,6 +41,12 @@ class AlphaModel:
     def fit(self, df: pd.DataFrame):
         df = self._prepare_target(df)
         df = df.dropna()
+
+        # ⭐ SAFETY: insufficient data guard
+        if len(df) < 50:
+            print("⚠️ Not enough data for Alpha training. Using zero-alpha fallback.")
+            self.trained = False
+            return
 
         self._select_features(df)
 
@@ -53,14 +73,25 @@ class AlphaModel:
 
         print(f"Validation RMSE: {rmse:.6f}")
 
+        self.trained = True
+
     def predict(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
+
+        if not self.trained or self.model is None:
+            print("⚠️ Alpha model not trained. Returning zero alpha scores.")
+            df["alpha_score"] = 0.0
+            return df[["date", "symbol", "alpha_score"]]
+
         X = df[self.feature_cols]
         df["alpha_score"] = self.model.predict(X)
+
         return df[["date", "symbol", "alpha_score"]]
 
     def save(self, path):
-        joblib.dump((self.model, self.feature_cols), path)
+        if self.trained:
+            joblib.dump((self.model, self.feature_cols), path)
 
     def load(self, path):
         self.model, self.feature_cols = joblib.load(path)
+        self.trained = True
