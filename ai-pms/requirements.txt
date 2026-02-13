@@ -7,3 +7,4 @@ hmmlearn
 lightgbm
 joblib
 cvxpy
+yfinance
