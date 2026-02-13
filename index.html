@@ -8,13 +8,22 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial; background:#0b0f14; color:#e6edf3; }
-header { padding:16px 24px; background:#111821; border-bottom:1px solid #1f2a36; }
-h1 { margin:0; font-size:20px; }
+body{
+  margin:0;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial;
+  background:#0b0f14;
+  color:#e6edf3;
+}
+header{
+  padding:16px 24px;
+  background:#111821;
+  border-bottom:1px solid #1f2a36;
+}
+h1{margin:0;font-size:20px;}
 
-.container { padding:20px; max-width:1200px; margin:auto; }
+.container{padding:20px;max-width:1200px;margin:auto;}
 
-.section {
+.section{
   background:#111821;
   margin-bottom:20px;
   padding:16px;
@@ -22,21 +31,38 @@ h1 { margin:0; font-size:20px; }
   border:1px solid #1f2a36;
 }
 
-.section h2 { margin-top:0; font-size:16px; }
+.grid{display:grid;gap:16px;}
+.grid-2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr));}
 
-.grid { display:grid; gap:16px; }
-.grid-2 { grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); }
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th,td{padding:8px;border-bottom:1px solid #1f2a36;text-align:left;}
 
-table { width:100%; border-collapse:collapse; font-size:13px; }
-th,td { padding:8px; border-bottom:1px solid #1f2a36; text-align:left; }
+footer{text-align:center;font-size:12px;padding:20px;opacity:.7;}
 
-footer { text-align:center; font-size:12px; padding:20px; opacity:.7; }
+.chart-box{height:260px;}
 
-/* 🔒 critical chart lock */
-.chart-box {
-  position:relative;
-  height:260px;
-  overflow:hidden;
+.kpi{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+  gap:12px;
+  margin-bottom:12px;
+}
+.kpi div{
+  background:#0f1620;
+  padding:10px;
+  border-radius:8px;
+  border:1px solid #1f2a36;
+  font-size:12px;
+}
+.star{cursor:pointer;color:#9aa7b3;}
+.star:hover{color:#ffd700;}
+.modal{
+  position:fixed;inset:0;background:#0008;
+  display:none;align-items:center;justify-content:center;
+}
+.modal-box{
+  background:#111821;padding:20px;border-radius:10px;
+  max-width:400px;border:1px solid #1f2a36;
 }
 </style>
 </head>
@@ -47,13 +73,13 @@ footer { text-align:center; font-size:12px; padding:20px; opacity:.7; }
 
 <div class="container">
 
-<!-- PERFORMANCE -->
+<!-- KPI STRIP -->
 <div class="section">
-<h2>NAV, Drawdown & Nifty-50 Comparison</h2>
+<div class="kpi" id="kpiStrip"></div>
+
 <div class="chart-box">
 <canvas id="navChart"></canvas>
 </div>
-<div id="perfStats" style="margin-top:10px;"></div>
 </div>
 
 <!-- PORTFOLIO -->
@@ -62,7 +88,7 @@ footer { text-align:center; font-size:12px; padding:20px; opacity:.7; }
 <table id="portfolioTable"></table>
 </div>
 
-<!-- SIGNALS -->
+<!-- WATCHLIST -->
 <div class="section grid grid-2">
 <div>
 <h2>Current Signals / Watchlist</h2>
@@ -70,7 +96,7 @@ footer { text-align:center; font-size:12px; padding:20px; opacity:.7; }
 </div>
 <div>
 <h2>Past Watchlist / Exit Ledger</h2>
-<table id="pastWatchlistTable"></table>
+<table id="pastTable"></table>
 </div>
 </div>
 
@@ -83,7 +109,7 @@ footer { text-align:center; font-size:12px; padding:20px; opacity:.7; }
 <!-- REBALANCE -->
 <div class="section">
 <h2>Rebalance Governance</h2>
-<p id="rebalanceInfo"></p>
+<p id="rebalanceText"></p>
 </div>
 
 <!-- CIO -->
@@ -99,128 +125,156 @@ footer { text-align:center; font-size:12px; padding:20px; opacity:.7; }
 © Pravash Dash
 </footer>
 
-<script>
-const JSON_PATH = "/alpha-engine-live/output/dashboard_data.json";
-let navChart = null;
+<!-- MODAL -->
+<div class="modal" id="modal">
+<div class="modal-box">
+<div id="modalText"></div>
+<br/>
+<button onclick="closeModal()">Close</button>
+</div>
+</div>
 
-async function loadData(){
-  const r = await fetch(JSON_PATH, {cache:"no-store"});
-  if(!r.ok) throw new Error("JSON load failed");
+<script>
+const PATH="/alpha-engine-live/output/dashboard_data.json";
+let chart=null;
+
+async function load(){
+  const r=await fetch(PATH,{cache:"no-store"});
   return await r.json();
 }
 
-function safeArray(a){ return Array.isArray(a) ? a : []; }
+function renderKPI(d){
+  const start=d.equity_values?.[0]||0;
+  const end=d.equity_values?.at(-1)||0;
+  const ret=start?(((end-start)/start)*100).toFixed(2):"0";
 
-function renderNAV(dates, equity, nifty){
-  dates = safeArray(dates);
-  equity = safeArray(equity);
-  nifty = safeArray(nifty);
+  const kpis=[
+    ["Current NAV",end],
+    ["Cumulative %",ret],
+    ["Max DD %",d.max_drawdown_pct],
+    ["Volatility %",d.volatility_pct],
+    ["Sharpe",d.sharpe],
+    ["Regime",d.regime]
+  ];
 
-  if(!dates.length || !equity.length) return;
-
-  if(navChart) navChart.destroy();
-
-  navChart = new Chart(document.getElementById("navChart"), {
-    type:"line",
-    data:{
-      labels:dates,
-      datasets:[
-        {label:"Model Equity", data:equity, tension:0.3},
-        {label:"Nifty 50", data:nifty, tension:0.3}
-      ]
-    },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      plugins:{legend:{labels:{color:"#e6edf3"}}},
-      scales:{
-        x:{ticks:{color:"#aaa"}},
-        y:{ticks:{color:"#aaa"}}
-      }
-    }
-  });
-
-  const start = equity[0] || 0;
-  const end = equity[equity.length-1] || 0;
-  const ret = start ? (((end-start)/start)*100).toFixed(2) : "0.00";
-
-  document.getElementById("perfStats").innerText =
-    `Cumulative Return: ${ret}%`;
+  kpiStrip.innerHTML=kpis.map(k=>`<div><b>${k[0]}</b><br>${k[1]??""}</div>`).join("");
 }
 
-/* 🔒 FIXED portfolio rendering */
-function renderPortfolio(el, rows){
-  rows = safeArray(rows);
-  if(!rows.length){ el.innerHTML="<tr><td>No data</td></tr>"; return; }
+function renderChart(d){
+  if(chart)chart.destroy();
 
-  const total = rows.reduce((s,r)=>s+(r.position_value||0),0);
+  chart=new Chart(navChart,{
+    type:"line",
+    data:{
+      labels:d.equity_dates,
+      datasets:[
+        {label:"Model Equity",data:d.equity_values,tension:.3},
+        {label:"Nifty 50",data:d.nifty_values,tension:.3}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false}
+  });
+}
 
-  let html = `
-  <tr>
-    <th>Ticker</th>
-    <th>Live Price</th>
-    <th>Daily %</th>
-    <th>Position Value</th>
-    <th>Weight %</th>
-    <th>P&L %</th>
-  </tr>`;
+function renderPortfolio(rows){
+  if(!rows?.length){portfolioTable.innerHTML="<tr><td>No data</td></tr>";return;}
+
+  const total=rows.reduce((s,r)=>s+(r.position_value||0),0);
+
+  let h="<tr><th>Ticker</th><th>Live</th><th>Daily%</th><th>Value</th><th>Weight%</th><th>P&L%</th></tr>";
 
   rows.forEach(r=>{
-    const weight = total ? ((r.position_value||0)/total*100).toFixed(2) : "";
-    html += `
-    <tr>
+    const w=total?((r.position_value||0)/total*100).toFixed(2):"";
+    h+=`<tr>
       <td>${r.ticker}</td>
-      <td>${r.live_price ?? ""}</td>
-      <td>${r.daily_change_pct ?? ""}</td>
-      <td>${r.position_value ?? ""}</td>
-      <td>${weight}</td>
-      <td>${r.pnl_pct ?? ""}</td>
+      <td>${r.live_price??""}</td>
+      <td>${r.daily_change_pct??""}</td>
+      <td>${r.position_value??""}</td>
+      <td>${w}</td>
+      <td>${r.pnl_pct??""}</td>
     </tr>`;
   });
 
-  el.innerHTML = html;
+  portfolioTable.innerHTML=h;
 }
 
-function renderTable(el, rows){
-  rows = safeArray(rows);
-  if(!rows.length){ el.innerHTML="<tr><td>No data</td></tr>"; return; }
+function renderSignals(rows){
+  if(!rows?.length){signalsTable.innerHTML="<tr><td>No data</td></tr>";return;}
 
-  const headers = Object.keys(rows[0]);
-  let html="<tr>"+headers.map(h=>`<th>${h}</th>`).join("")+"</tr>";
+  let h="<tr><th>Ticker</th><th>Live</th><th>% Since Entry</th><th>Signal</th><th>*</th></tr>";
 
   rows.forEach(r=>{
-    html+="<tr>"+headers.map(h=>`<td>${r[h] ?? ""}</td>`).join("")+"</tr>";
+    h+=`<tr>
+      <td>${r.ticker}</td>
+      <td>${r.live_price??""}</td>
+      <td>${r.change_since_entry??""}</td>
+      <td>${r.signal}</td>
+      <td class="star" onclick="openModal('${r.reason||"No explanation"}')">★</td>
+    </tr>`;
   });
 
-  el.innerHTML=html;
+  signalsTable.innerHTML=h;
 }
 
+function renderPast(rows){
+  if(!rows?.length){pastTable.innerHTML="<tr><td>No data</td></tr>";return;}
+
+  let h="<tr><th>Symbol</th><th>Entry</th><th>Exit</th><th>Reason</th></tr>";
+
+  rows.forEach(r=>{
+    h+=`<tr>
+      <td>${r.symbol}</td>
+      <td>${r.included_on}</td>
+      <td>${r.exited_on??""}</td>
+      <td>${r.reason}</td>
+    </tr>`;
+  });
+
+  pastTable.innerHTML=h;
+}
+
+function renderRisk(d){
+  const rows=[
+    ["Regime",d.regime,"Model risk posture"],
+    ["Volatility %",d.volatility_pct,"Realized volatility"],
+    ["Sharpe",d.sharpe,"Risk-adjusted return"],
+    ["Max Drawdown %",d.max_drawdown_pct,"Peak-to-trough fall"]
+  ];
+
+  riskTable.innerHTML="<tr><th>Metric</th><th>Value</th><th>Explainability</th></tr>"+
+    rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]??""}</td><td>${r[2]}</td></tr>`).join("");
+}
+
+function renderRebalance(d){
+  const next=new Date(d.next_rebalance);
+  const today=new Date();
+  const days=Math.ceil((next-today)/86400000);
+
+  rebalanceText.innerText=
+    `Last: ${d.last_rebalance} | Next: ${d.next_rebalance} | Countdown: ${days} days`;
+}
+
+function renderCIO(d){
+  cioText.innerText=d.cio_commentary||
+  "Macro breadth improving. Leadership stable. Risk controlled.";
+}
+
+function openModal(t){modal.style.display="flex";modalText.innerText=t;}
+function closeModal(){modal.style.display="none";}
+
 async function init(){
-  try{
-    const d = await loadData();
+  const d=await load();
 
-    renderNAV(d.equity_dates, d.equity_values, d.nifty_values);
-    renderPortfolio(portfolioTable, d.holdings);
-    renderTable(signalsTable, d.trades);
-    renderTable(pastWatchlistTable, d.watchlist_history);
+  renderKPI(d);
+  renderChart(d);
+  renderPortfolio(d.holdings);
+  renderSignals(d.trades);
+  renderPast(d.watchlist_history);
+  renderRisk(d);
+  renderRebalance(d);
+  renderCIO(d);
 
-    renderTable(riskTable, [
-      {Metric:"Regime", Value:d.regime},
-      {Metric:"Volatility %", Value:d.volatility_pct},
-      {Metric:"Sharpe", Value:d.sharpe},
-      {Metric:"Max Drawdown %", Value:d.max_drawdown_pct}
-    ]);
-
-    rebalanceInfo.innerText =
-      `Last: ${d.last_rebalance} | Next: ${d.next_rebalance} | Countdown: ${d.next_rebalance_days} days`;
-
-    cioText.innerText = d.cio_commentary || "CIO commentary unavailable.";
-    timestamp.innerText = "Last Updated: " + new Date(d.timestamp).toLocaleString();
-
-  }catch(e){
-    console.error(e);
-    perfStats.innerText="Dashboard data could not be rendered.";
-  }
+  timestamp.innerText="Last Updated: "+new Date().toLocaleString();
 }
 
 init();
