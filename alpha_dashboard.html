@@ -301,3 +301,66 @@ setInterval(renderAll, 300000);
 </script>
 </body>
 </html>
+<script>
+async function loadJSON(path) {
+  const r = await fetch(path + "?t=" + Date.now());
+  if (!r.ok) throw new Error(path + " not found");
+  return await r.json();
+}
+
+async function initDashboard() {
+  try {
+    const [nav, deploy, gov, pos, ai] = await Promise.all([
+      loadJSON("phase2/nav.json"),
+      loadJSON("phase2/deployment.json"),
+      loadJSON("phase2/governance.json"),
+      loadJSON("phase2/positions.json"),
+      loadJSON("phase2/ai.json"),
+    ]);
+
+    /* NAV */
+    document.querySelector("#navValue").innerText =
+      "₹" + nav.value.toLocaleString() + " (" + nav.return_pct + "%)";
+
+    /* Regime */
+    document.querySelector("#regimeText").innerText = gov.regime;
+
+    /* Capital journey */
+    document.querySelector("#deployText").innerText =
+      "₹" + deploy.deployed.toLocaleString();
+
+    /* Portfolio positions table */
+    const table = document.querySelector("#positionsTable");
+    table.innerHTML = "";
+
+    pos.forEach(p => {
+      const row = `
+        <tr>
+          <td>${p.symbol}</td>
+          <td>${p.qty}</td>
+          <td>${p.avg_cost}</td>
+          <td>${p.price}</td>
+          <td>${p.mtm}</td>
+          <td>${p.weight}%</td>
+        </tr>
+      `;
+      table.innerHTML += row;
+    });
+
+    /* Snapshot (top holdings) */
+    const snap = document.querySelector("#snapshotTable");
+    snap.innerHTML = "";
+    pos.slice(0, 5).forEach(p => {
+      snap.innerHTML += `<tr><td>${p.symbol}</td><td>${p.weight}%</td></tr>`;
+    });
+
+    /* AI text */
+    document.querySelector("#aiText").innerText = ai.text;
+
+  } catch (e) {
+    console.error("Dashboard load error:", e);
+  }
+}
+
+initDashboard();
+</script>
