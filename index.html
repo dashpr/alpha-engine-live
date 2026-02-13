@@ -8,138 +8,155 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial;
-  background: #0b0f14;
-  color: #e6edf3;
-}
-
-header {
-  padding: 16px 24px;
-  background: #111821;
-  border-bottom: 1px solid #1f2a36;
-}
-
-h1 { margin: 0; font-size: 20px; }
-
-.container {
-  padding: 20px;
-  max-width: 1200px;
-  margin: auto;
-}
-
-.section {
-  background: #111821;
-  margin-bottom: 20px;
-  padding: 16px;
-  border-radius: 10px;
-  border: 1px solid #1f2a36;
-}
-
-.section h2 { margin-top: 0; font-size: 16px; }
-
-.grid {
-  display: grid;
-  gap: 16px;
-}
-
-.grid-2 {
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-th, td {
-  padding: 8px;
-  border-bottom: 1px solid #1f2a36;
-  text-align: left;
-}
-
-footer {
-  text-align: center;
-  font-size: 12px;
-  padding: 20px;
-  opacity: 0.7;
-}
+body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial; background:#0b0f14; color:#e6edf3; }
+header { padding:16px 24px; background:#111821; border-bottom:1px solid #1f2a36; }
+h1 { margin:0; font-size:20px; }
+.container { padding:20px; max-width:1200px; margin:auto; }
+.section { background:#111821; margin-bottom:20px; padding:16px; border-radius:10px; border:1px solid #1f2a36; }
+.section h2 { margin-top:0; font-size:16px; }
+.grid { display:grid; gap:16px; }
+.grid-2 { grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th,td { padding:8px; border-bottom:1px solid #1f2a36; text-align:left; }
+footer { text-align:center; font-size:12px; padding:20px; opacity:.7; }
 </style>
 </head>
 
 <body>
 
-<header>
-  <h1>AI PMS Investor Dashboard</h1>
-</header>
+<header><h1>AI PMS Investor Dashboard</h1></header>
 
 <div class="container">
 
-  <!-- PERFORMANCE -->
-  <div class="section">
-    <h2>NAV, Drawdown & Nifty-50 Comparison</h2>
-    <canvas id="navChart"></canvas>
-    <div id="perfStats"></div>
-  </div>
+<div class="section">
+<h2>NAV, Drawdown & Nifty-50 Comparison</h2>
+<canvas id="navChart" height="120"></canvas>
+<div id="perfStats"></div>
+</div>
 
-  <!-- PORTFOLIO -->
-  <div class="section">
-    <h2>Portfolio Snapshot (Live Pricing)</h2>
-    <table id="portfolioTable"></table>
-  </div>
+<div class="section">
+<h2>Portfolio Snapshot (Live Pricing)</h2>
+<table id="portfolioTable"></table>
+</div>
 
-  <!-- SIGNALS -->
-  <div class="section grid grid-2">
-    <div>
-      <h2>Current Signals / Watchlist</h2>
-      <table id="signalsTable"></table>
-    </div>
-    <div>
-      <h2>Past Watchlist / Exit Ledger</h2>
-      <table id="pastWatchlistTable"></table>
-    </div>
-  </div>
+<div class="section grid grid-2">
+<div>
+<h2>Current Signals / Watchlist</h2>
+<table id="signalsTable"></table>
+</div>
+<div>
+<h2>Past Watchlist / Exit Ledger</h2>
+<table id="pastWatchlistTable"></table>
+</div>
+</div>
 
-  <!-- RISK -->
-  <div class="section">
-    <h2>Risk Metrics & Stability Matrix</h2>
-    <table id="riskTable"></table>
-  </div>
+<div class="section">
+<h2>Risk Metrics & Stability Matrix</h2>
+<table id="riskTable"></table>
+</div>
 
-  <!-- REBALANCE -->
-  <div class="section">
-    <h2>Rebalance Governance</h2>
-    <p id="rebalanceInfo"></p>
-  </div>
+<div class="section">
+<h2>Rebalance Governance</h2>
+<p id="rebalanceInfo"></p>
+</div>
 
-  <!-- CIO -->
-  <div class="section">
-    <h2>CIO Commentary</h2>
-    <div id="cioText"></div>
-  </div>
+<div class="section">
+<h2>CIO Commentary</h2>
+<div id="cioText"></div>
+</div>
 
 </div>
 
 <footer>
-  <div id="timestamp"></div>
-  © Pravash Dash
+<div id="timestamp"></div>
+© Pravash Dash
 </footer>
 
 <script>
 const JSON_PATH = "/alpha-engine-live/output/dashboard_data.json";
 let navChart = null;
 
-async function loadData() {
-  const res = await fetch(JSON_PATH);
-  if (!res.ok) throw new Error("Dashboard JSON not found");
-  return await res.json();
+async function loadData(){
+  const r = await fetch(JSON_PATH, {cache:"no-store"});
+  if(!r.ok) throw new Error("JSON load failed");
+  return await r.json();
 }
 
-function renderNAV(dates, equity, nifty) {
-  if (!dates?.length || !equity?.length) return;
+function safeArray(a){ return Array.isArray(a) ? a : []; }
 
-  if (navChart) navChart.destroy();
+function renderNAV(dates, equity, nifty){
+  dates = safeArray(dates);
+  equity = safeArray(equity);
+  nifty = safeArray(nifty);
 
-  navChart = new Chart(document.getElement
+  if(!dates.length || !equity.length) return;
+
+  if(navChart) navChart.destroy();
+
+  navChart = new Chart(document.getElementById("navChart"), {
+    type:"line",
+    data:{
+      labels:dates,
+      datasets:[
+        {label:"Model Equity", data:equity},
+        {label:"Nifty 50", data:nifty}
+      ]
+    },
+    options:{responsive:true, maintainAspectRatio:false}
+  });
+
+  const start = equity[0] || 0;
+  const end = equity[equity.length-1] || 0;
+  const ret = start ? (((end-start)/start)*100).toFixed(2) : "0.00";
+
+  document.getElementById("perfStats").innerText = `Cumulative Return: ${ret}%`;
+}
+
+function renderTable(el, rows){
+  rows = safeArray(rows);
+  if(!rows.length){ el.innerHTML="<tr><td>No data</td></tr>"; return; }
+
+  const headers = Object.keys(rows[0]);
+  let html="<tr>"+headers.map(h=>`<th>${h}</th>`).join("")+"</tr>";
+
+  rows.forEach(r=>{
+    html+="<tr>"+headers.map(h=>`<td>${r[h] ?? ""}</td>`).join("")+"</tr>";
+  });
+
+  el.innerHTML=html;
+}
+
+async function init(){
+  try{
+    const d = await loadData();
+
+    renderNAV(d.equity_dates, d.equity_values, d.nifty_values);
+    renderTable(portfolioTable, d.holdings);
+    renderTable(signalsTable, d.trades);
+    renderTable(pastWatchlistTable, d.watchlist_history);
+
+    renderTable(riskTable, [
+      {Metric:"Regime", Value:d.regime},
+      {Metric:"Volatility %", Value:d.volatility_pct},
+      {Metric:"Sharpe", Value:d.sharpe},
+      {Metric:"Max Drawdown %", Value:d.max_drawdown_pct}
+    ]);
+
+    rebalanceInfo.innerText =
+      `Last: ${d.last_rebalance} | Next: ${d.next_rebalance} | Countdown: ${d.next_rebalance_days} days`;
+
+    cioText.innerText = d.cio_commentary || "CIO commentary unavailable.";
+    timestamp.innerText = "Last Updated: " + new Date(d.timestamp).toLocaleString();
+
+  }catch(e){
+    console.error(e);
+    perfStats.innerText="Dashboard data could not be rendered.";
+  }
+}
+
+init();
+setInterval(init,300000);
+</script>
+
+</body>
+</html>
