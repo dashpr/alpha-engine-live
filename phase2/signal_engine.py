@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 import json
+import time
 from datetime import datetime
 
 LOOKBACKS = [21, 63, 126]
@@ -17,24 +18,20 @@ def load_universe():
     return df["symbol"].dropna().tolist()
 
 
-def fetch_prices(symbols):
-    try:
-        data = yf.download(
-            tickers=symbols,
-            period="1y",
-            interval="1d",
-            group_by="ticker",
-            auto_adjust=True,
-            progress=False,
-            threads=False,  # safer in GitHub
-        )
-        return data
-    except Exception:
-        return None
+def fetch_close(symbol):
+    """Robust single-symbol fetch with retry."""
+    for _ in range(3):
+        try:
+            df = yf.download(symbol, period="1y", interval="1d", progress=False)
+            if not df.empty:
+                return df["Close"].dropna()
+        except Exception:
+            time.sleep(1)
+    return None
 
 
 def momentum_score(close):
-    scores = [(close.pct_change(lb)) for lb in LOOKBACKS]
+    scores = [close.pct_change(lb) for lb in LOOKBACKS]
     return np.mean(scores, axis=0)
 
 
@@ -45,42 +42,29 @@ def volatility(close):
 def build_signals():
 
     symbols = load_universe()
-    prices = fetch_prices(symbols)
-
     records = []
 
-    if prices is None or len(prices) == 0:
-        print("⚠️ Price download failed — creating fallback signals")
-    else:
-        for s in symbols:
-            try:
-                close = prices[s]["Close"].dropna()
+    for s in symbols:
+        close = fetch_close(s)
 
-                if len(close) < 150:
-                    continue
+        if close is None or len(close) < 150:
+            continue
 
-                mom = momentum_score(close).iloc[-1]
-                vol = volatility(close).iloc[-1]
+        mom = momentum_score(close).iloc[-1]
+        vol = volatility(close).iloc[-1]
 
-                if pd.isna(mom) or pd.isna(vol):
-                    continue
+        if pd.isna(mom) or pd.isna(vol) or vol == 0:
+            continue
 
-                score = mom / (vol + 1e-9)
+        score = mom / vol
 
-                records.append(
-                    {
-                        "symbol": s,
-                        "momentum": float(mom),
-                        "volatility": float(vol),
-                        "score": float(score),
-                    }
-                )
-            except Exception:
-                continue
+        records.append(
+            {"symbol": s, "momentum": float(mom), "volatility": float(vol), "score": float(score)}
+        )
 
-    # ---------- Fallback if empty ----------
+    # ---------- fallback only if ZERO data ----------
     if len(records) == 0:
-        print("⚠️ No valid signals — using fallback equal universe")
+        print("⚠️ Yahoo blocked → fallback equal universe")
         records = [{"symbol": s, "momentum": 0, "volatility": 1, "score": 0} for s in symbols[:TOP_N]]
 
     df = pd.DataFrame(records).sort_values("score", ascending=False).head(TOP_N)
