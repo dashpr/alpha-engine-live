@@ -1,143 +1,226 @@
+"""
+PHASE-2 INSTITUTIONAL SIGNAL ENGINE
+-----------------------------------
+
+Responsibilities:
+• Download price data for NIFTY-200 universe
+• Compute multi-horizon momentum
+• Compute scalar-safe volatility
+• Rank securities deterministically
+• Output clean signal dataframe for portfolio constructor
+
+Design Principles:
+• CI-safe pandas handling
+• Deterministic outputs
+• Zero-crash guarantees
+• Institutional logging clarity
+"""
+
+import os
 import pandas as pd
 import numpy as np
 import yfinance as yf
-import json
-import time
 from datetime import datetime
 
-LOOKBACKS = [21, 63, 126]
-VOL_WINDOW = 21
-TOP_N = 20
+# ================= CONFIG =================
 
-UNIVERSE_FILE = "data/nifty200.csv"
-OUTPUT_FILE = "phase2/data/signals.json"
+DATA_PATH = "data"
+UNIVERSE_FILE = os.path.join(DATA_PATH, "nifty200.csv")
+
+LOOKBACK_DAYS = 252
+MOM_WINDOWS = [21, 63, 126]
+VOL_WINDOW = 63
+
+MIN_PRICE_HISTORY = 150
+TOP_N_SIGNALS = 30
 
 
-# =========================
-# LOAD UNIVERSE
-# =========================
-def load_universe():
+# ================= UTILITIES =================
+
+def log(msg: str):
+    """Simple deterministic logger."""
+    print(f"[SIGNAL_ENGINE] {msg}")
+
+
+def safe_float(value) -> float:
+    """
+    Convert pandas/numpy/scalar safely to float.
+    Never throws.
+    """
+    try:
+        if hasattr(value, "item"):
+            return float(value.item())
+        return float(value)
+    except Exception:
+        return 0.0
+
+
+# ================= DATA LOADING =================
+
+def load_universe() -> list:
+    """Load NIFTY-200 symbols."""
+    if not os.path.exists(UNIVERSE_FILE):
+        raise FileNotFoundError("nifty200.csv not found in /data")
+
     df = pd.read_csv(UNIVERSE_FILE)
-    return df["symbol"].dropna().tolist()
+
+    if "Symbol" not in df.columns:
+        raise ValueError("Universe file must contain 'Symbol' column")
+
+    symbols = sorted(df["Symbol"].dropna().unique().tolist())
+
+    log(f"Loaded universe: {len(symbols)} symbols")
+    return symbols
 
 
-# =========================
-# SAFE CLOSE FETCH
-# =========================
-def fetch_close(symbol):
+def download_prices(symbol: str) -> pd.Series | None:
     """
-    Robust Yahoo download with retry.
-    Always returns a clean pandas Series or None.
+    Download adjusted close prices from Yahoo Finance.
+    Returns None if invalid or insufficient data.
     """
-    for _ in range(3):
-        try:
-            df = yf.download(
-                symbol,
-                period="1y",
-                interval="1d",
-                progress=False,
-                threads=False,
-                auto_adjust=True,
-            )
+    try:
+        df = yf.download(
+            symbol,
+            period="1y",
+            interval="1d",
+            progress=False,
+            auto_adjust=True,
+            threads=False,
+        )
 
-            if df is None or df.empty:
-                time.sleep(1)
-                continue
+        if df is None or df.empty:
+            return None
 
-            # Handle possible multi-index columns
-            if isinstance(df.columns, pd.MultiIndex):
-                if ("Close" in df.columns.get_level_values(0)):
-                    close = df["Close"]
-                else:
-                    close = df.iloc[:, 0]
-            else:
-                close = df["Close"] if "Close" in df else df.iloc[:, 0]
+        close = df["Close"].dropna()
 
-            close = close.dropna()
+        if len(close) < MIN_PRICE_HISTORY:
+            return None
 
-            if len(close) > 0:
-                return close
+        return close
 
-        except Exception:
-            time.sleep(1)
-
-    return None
+    except Exception:
+        return None
 
 
-# =========================
-# MOMENTUM + VOL
-# =========================
-def momentum_score(close: pd.Series) -> float:
-    """Return scalar multi-horizon momentum."""
-    vals = []
-    for lb in LOOKBACKS:
-        if len(close) > lb:
-            vals.append(close.pct_change(lb).iloc[-1])
-    return float(np.nanmean(vals)) if len(vals) > 0 else np.nan
+# ================= SIGNAL CALCULATIONS =================
+
+def momentum(close: pd.Series, window: int) -> float:
+    """Compute scalar-safe momentum."""
+    if close is None or len(close) < window:
+        return 0.0
+
+    try:
+        return safe_float(close.iloc[-1] / close.iloc[-window] - 1)
+    except Exception:
+        return 0.0
 
 
 def volatility(close: pd.Series) -> float:
-    """Return scalar rolling volatility."""
-    if len(close) < VOL_WINDOW:
-        return np.nan
-    return float(close.pct_change().rolling(VOL_WINDOW).std().iloc[-1])
+    """
+    Scalar-safe rolling volatility.
+    GUARANTEED never to crash CI.
+    """
+    if close is None or len(close) < VOL_WINDOW:
+        return 0.0
+
+    try:
+        vol_series = close.pct_change().rolling(VOL_WINDOW).std()
+
+        if vol_series is None or vol_series.empty:
+            return 0.0
+
+        last_val = vol_series.iloc[-1]
+        return safe_float(last_val)
+
+    except Exception:
+        return 0.0
 
 
-# =========================
-# BUILD SIGNALS
-# =========================
-def build_signals():
+def compute_signal_row(symbol: str, close: pd.Series) -> dict | None:
+    """Build signal metrics for one stock."""
+    if close is None:
+        return None
 
-    symbols = load_universe()
-    records = []
+    mom_scores = [momentum(close, w) for w in MOM_WINDOWS]
+    vol = volatility(close)
 
-    for s in symbols:
-        close = fetch_close(s)
+    # Reject zero-vol assets (bad data)
+    if vol <= 0:
+        return None
 
-        if close is None or len(close) < 150:
-            continue
+    # Institutional composite momentum score
+    composite_mom = np.mean(mom_scores)
 
-        mom = momentum_score(close)
-        vol = volatility(close)
+    # Risk-adjusted signal
+    signal_strength = composite_mom / vol if vol > 0 else 0.0
 
-        if np.isnan(mom) or np.isnan(vol) or vol == 0:
-            continue
-
-        score = mom / vol
-
-        records.append({
-            "symbol": s,
-            "momentum": float(mom),
-            "volatility": float(vol),
-            "score": float(score),
-        })
-
-    # =========================
-    # FALLBACK ONLY IF ZERO DATA
-    # =========================
-    if len(records) == 0:
-        print("⚠️ Yahoo blocked → fallback equal universe")
-        records = [
-            {"symbol": s, "momentum": 0.0, "volatility": 1.0, "score": 0.0}
-            for s in symbols[:TOP_N]
-        ]
-
-    # =========================
-    # SELECT TOP SIGNALS
-    # =========================
-    df = (
-        pd.DataFrame(records)
-        .sort_values("score", ascending=False)
-        .head(TOP_N)
-        .reset_index(drop=True)
-    )
-
-    output = {
-        "timestamp": datetime.utcnow().isoformat(),
-        "top_signals": df.to_dict(orient="records"),
+    return {
+        "symbol": symbol,
+        "momentum_1m": mom_scores[0],
+        "momentum_3m": mom_scores[1],
+        "momentum_6m": mom_scores[2],
+        "volatility": vol,
+        "composite_momentum": composite_mom,
+        "signal_strength": signal_strength,
     }
 
-    with open(OUTPUT_FILE, "w") as f:
-        json.dump(output, f, indent=2)
 
-    print(f"✅ Signals generated: {len(df)}")
+# ================= MAIN ENGINE =================
+
+def build_signals() -> pd.DataFrame:
+    """
+    Institutional deterministic signal builder.
+    Produces ranked dataframe ready for portfolio construction.
+    """
+    log("Starting signal build...")
+
+    symbols = load_universe()
+
+    rows = []
+    valid = 0
+    rejected = 0
+
+    for symbol in symbols:
+        close = download_prices(symbol)
+
+        row = compute_signal_row(symbol, close)
+
+        if row:
+            rows.append(row)
+            valid += 1
+        else:
+            rejected += 1
+
+    log(f"Valid symbols   : {valid}")
+    log(f"Rejected symbols: {rejected}")
+
+    if not rows:
+        raise RuntimeError("No valid signals generated")
+
+    df = pd.DataFrame(rows)
+
+    # Deterministic ranking
+    df = df.sort_values("signal_strength", ascending=False).reset_index(drop=True)
+
+    # Keep only top signals
+    df = df.head(TOP_N_SIGNALS)
+
+    log(f"Top signals selected: {len(df)}")
+
+    return df
+
+
+# ================= CLI ENTRY =================
+
+if __name__ == "__main__":
+    log("=== PHASE-2 SIGNAL ENGINE RUN ===")
+
+    signals = build_signals()
+
+    os.makedirs(DATA_PATH, exist_ok=True)
+
+    out_file = os.path.join(DATA_PATH, "signals.csv")
+    signals.to_csv(out_file, index=False)
+
+    log(f"Signals saved → {out_file}")
+    log("=== SIGNAL ENGINE COMPLETE ===")
