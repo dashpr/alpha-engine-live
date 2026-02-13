@@ -22,12 +22,12 @@ def load_universe():
 
 
 # =========================
-# ROBUST PRICE FETCH
+# SAFE CLOSE FETCH
 # =========================
 def fetch_close(symbol):
     """
-    Download single symbol safely with retry.
-    Designed for GitHub Actions environment.
+    Robust Yahoo download with retry.
+    Always returns a clean pandas Series or None.
     """
     for _ in range(3):
         try:
@@ -37,10 +37,26 @@ def fetch_close(symbol):
                 interval="1d",
                 progress=False,
                 threads=False,
+                auto_adjust=True,
             )
 
-            if not df.empty and "Close" in df:
-                return df["Close"].dropna()
+            if df is None or df.empty:
+                time.sleep(1)
+                continue
+
+            # Handle possible multi-index columns
+            if isinstance(df.columns, pd.MultiIndex):
+                if ("Close" in df.columns.get_level_values(0)):
+                    close = df["Close"]
+                else:
+                    close = df.iloc[:, 0]
+            else:
+                close = df["Close"] if "Close" in df else df.iloc[:, 0]
+
+            close = close.dropna()
+
+            if len(close) > 0:
+                return close
 
         except Exception:
             time.sleep(1)
@@ -49,22 +65,22 @@ def fetch_close(symbol):
 
 
 # =========================
-# MOMENTUM + VOL FUNCTIONS
+# MOMENTUM + VOL
 # =========================
-def momentum_score(close: pd.Series) -> pd.Series:
-    """
-    Multi-horizon momentum averaged into a pandas Series.
-    Returns pandas Series (NOT numpy array).
-    """
-    scores = pd.concat(
-        [close.pct_change(lb) for lb in LOOKBACKS],
-        axis=1
-    )
-    return scores.mean(axis=1)
+def momentum_score(close: pd.Series) -> float:
+    """Return scalar multi-horizon momentum."""
+    vals = []
+    for lb in LOOKBACKS:
+        if len(close) > lb:
+            vals.append(close.pct_change(lb).iloc[-1])
+    return float(np.nanmean(vals)) if len(vals) > 0 else np.nan
 
 
-def volatility(close: pd.Series) -> pd.Series:
-    return close.pct_change().rolling(VOL_WINDOW).std()
+def volatility(close: pd.Series) -> float:
+    """Return scalar rolling volatility."""
+    if len(close) < VOL_WINDOW:
+        return np.nan
+    return float(close.pct_change().rolling(VOL_WINDOW).std().iloc[-1])
 
 
 # =========================
@@ -78,18 +94,12 @@ def build_signals():
     for s in symbols:
         close = fetch_close(s)
 
-        # Skip if data missing
         if close is None or len(close) < 150:
             continue
 
-        # --- compute metrics ---
-        mom_series = momentum_score(close)
-        vol_series = volatility(close)
+        mom = momentum_score(close)
+        vol = volatility(close)
 
-        mom = float(mom_series.iloc[-1])
-        vol = float(vol_series.iloc[-1])
-
-        # --- validation ---
         if np.isnan(mom) or np.isnan(vol) or vol == 0:
             continue
 
@@ -103,10 +113,10 @@ def build_signals():
         })
 
     # =========================
-    # FALLBACK (only if ZERO data)
+    # FALLBACK ONLY IF ZERO DATA
     # =========================
     if len(records) == 0:
-        print("⚠️ Yahoo blocked → using fallback equal universe")
+        print("⚠️ Yahoo blocked → fallback equal universe")
         records = [
             {"symbol": s, "momentum": 0.0, "volatility": 1.0, "score": 0.0}
             for s in symbols[:TOP_N]
