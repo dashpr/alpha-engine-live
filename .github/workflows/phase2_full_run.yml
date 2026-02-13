@@ -1,0 +1,42 @@
+name: Phase2 Full Run
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 * * * *"   # hourly
+
+permissions:
+  contents: write   # REQUIRED for pushing files
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install pandas numpy yfinance
+
+      - name: Run Phase-2 Orchestrator
+        run: python -m phase2.orchestrator
+
+      # 🔴 CRITICAL — commit generated dashboard data
+      - name: Commit data.json to repo root
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+
+          git add data.json || true
+
+          git commit -m "Auto-update dashboard data [CI]" || true
+          git push
