@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>AI PMS Dashboard</title>
+<title>AI PMS Investor Dashboard</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -21,10 +21,7 @@ header {
   border-bottom: 1px solid #1f2a36;
 }
 
-h1 {
-  margin: 0;
-  font-size: 20px;
-}
+h1 { margin: 0; font-size: 20px; }
 
 .container {
   padding: 20px;
@@ -40,19 +37,7 @@ h1 {
   border: 1px solid #1f2a36;
 }
 
-.section h2 {
-  margin-top: 0;
-  font-size: 16px;
-}
-
-.grid {
-  display: grid;
-  gap: 16px;
-}
-
-.grid-2 {
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-}
+.section h2 { margin-top: 0; font-size: 16px; }
 
 table {
   width: 100%;
@@ -86,43 +71,26 @@ footer {
 
 <div class="container">
 
-  <!-- PERFORMANCE -->
   <div class="section">
     <h2>NAV & Benchmark Comparison</h2>
     <canvas id="navChart"></canvas>
   </div>
 
-  <!-- PORTFOLIO SNAPSHOT -->
   <div class="section">
     <h2>Portfolio Snapshot</h2>
     <table id="portfolioTable"></table>
   </div>
 
-  <!-- WATCHLIST HISTORY -->
-  <div class="section grid grid-2">
-    <div>
-      <h2>Current Watchlist</h2>
-      <table id="watchlistCurrent"></table>
-    </div>
-    <div>
-      <h2>Past Watchlist</h2>
-      <table id="watchlistPast"></table>
-    </div>
-  </div>
-
-  <!-- RISK -->
   <div class="section">
     <h2>Risk Metrics</h2>
     <table id="riskTable"></table>
   </div>
 
-  <!-- REBALANCE -->
   <div class="section">
     <h2>Rebalance Governance</h2>
     <p id="rebalanceInfo"></p>
   </div>
 
-  <!-- CIO -->
   <div class="section">
     <h2>CIO Commentary</h2>
     <div id="cioText"></div>
@@ -137,7 +105,7 @@ footer {
 
 <script>
 async function loadData() {
-  const res = await fetch("./data.json");
+  const res = await fetch("./output/dashboard_data.json");
   return await res.json();
 }
 
@@ -153,14 +121,10 @@ function renderTable(el, rows) {
   rows.forEach(r => {
     html += "<tr>" + headers.map(h => {
       let v = r[h];
-
-      if (typeof v === "number") v = v.toFixed(2);
-
-      if (typeof v === "number" && v > 0)
-        return `<td class="green">${v}</td>`;
-      if (typeof v === "number" && v < 0)
-        return `<td class="red">${v}</td>`;
-
+      if (typeof v === "number") {
+        const cls = v > 0 ? "green" : v < 0 ? "red" : "";
+        return `<td class="${cls}">${v.toFixed(2)}</td>`;
+      }
       return `<td>${v}</td>`;
     }).join("") + "</tr>";
   });
@@ -168,43 +132,25 @@ function renderTable(el, rows) {
   el.innerHTML = html;
 }
 
-function renderNAV(navData) {
-  if (!navData || navData.length === 0) return;
-
-  const labels = navData.map(x => x.date || "");
-  const values = navData.map(x => x.nav || 0);
-  const nifty = navData.map(x => x.nifty || 0);
+function renderNAV(navSeries, benchmark) {
+  if (!navSeries) return;
 
   new Chart(document.getElementById("navChart"), {
     type: "line",
     data: {
-      labels,
+      labels: navSeries.map(x => x.date),
       datasets: [
-        { label: "Model NAV", data: values },
-        { label: "Nifty 50", data: nifty }
+        { label: "Model NAV", data: navSeries.map(x => x.nav) },
+        { label: "Nifty 50", data: benchmark || [] }
       ]
     },
-    options: {
-      responsive: true,
-      plugins: { legend: { labels: { color: "#e6edf3" } } },
-      scales: {
-        x: { ticks: { color: "#9fb0c0" } },
-        y: { ticks: { color: "#9fb0c0" } }
-      }
-    }
+    options: { responsive: true }
   });
 }
 
-function renderRebalance(info) {
-  if (!info) return;
+function renderRebalance(last, nextDays) {
   document.getElementById("rebalanceInfo").innerText =
-    `Last Rebalance: ${info.last} | Next Rebalance In: ${info.next_days} days`;
-}
-
-function renderCIO(textArr) {
-  if (!textArr || textArr.length === 0) return;
-  document.getElementById("cioText").innerText =
-    textArr.map(x => x.text || "").join("\n\n");
+    `Last Rebalance: ${last} | Next Rebalance In: ${nextDays} days`;
 }
 
 function renderTimestamp(ts) {
@@ -215,19 +161,18 @@ function renderTimestamp(ts) {
 async function init() {
   const data = await loadData();
 
-  renderNAV(data.nav);
+  renderNAV(data.nav_series, data.benchmark_series);
   renderTable(document.getElementById("portfolioTable"), data.portfolio);
-  renderTable(document.getElementById("watchlistCurrent"), data.signals);
-  renderTable(document.getElementById("watchlistPast"), data.watchlist_past);
-  renderTable(document.getElementById("riskTable"), data.risk);
+  renderTable(document.getElementById("riskTable"), data.risk_metrics);
 
-  renderRebalance(data.rebalance);
-  renderCIO(data.commentary);
+  renderRebalance(data.last_rebalance, data.next_rebalance_days);
+
+  document.getElementById("cioText").innerText = data.cio_commentary || "";
   renderTimestamp(data.timestamp);
 }
 
 init();
-setInterval(init, 5 * 60 * 1000); // auto-refresh every 5 min
+setInterval(init, 300000);
 </script>
 
 </body>
