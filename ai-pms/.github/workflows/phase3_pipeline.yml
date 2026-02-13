@@ -1,0 +1,52 @@
+name: Phase-3 AI PMS Pipeline
+
+on:
+  schedule:
+    # Daily run at 6:30 PM IST (13:00 UTC) after market close
+    - cron: "0 13 * * 1-5"
+
+    # Weekly rebalance run at Saturday 8:00 AM IST (02:30 UTC)
+    - cron: "30 2 * * 6"
+
+  workflow_dispatch:
+
+jobs:
+  build-and-run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # -----------------------------
+      # DAILY ENGINES
+      # -----------------------------
+
+      - name: Run Feature Factory
+        run: python run_feature_factory.py
+
+      - name: Run Regime Detection
+        run: python run_regime_detection.py
+
+      - name: Run Tests
+        run: pytest
+
+      # -----------------------------
+      # ARTIFACT STORAGE
+      # -----------------------------
+
+      - name: Upload output artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3-outputs
+          path: data/output/
