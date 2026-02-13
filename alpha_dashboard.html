@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>AI Alpha Engine — PMS Console</title>
+<title>AI Alpha Engine — Phase-2A PMS Console</title>
 
 <style>
 body { font-family: Arial; background:#0b1220; color:#e5e7eb; margin:30px; }
@@ -13,13 +13,17 @@ table { width:100%; border-collapse:collapse; }
 th, td { padding:10px; border-bottom:1px solid #1f2937; }
 .green { color:#22c55e; }
 .red { color:#ef4444; }
+.grid { display:grid; grid-template-columns: repeat(4,1fr); gap:15px; }
+.metric { background:#020617; padding:15px; border-radius:10px; }
+.small { color:#9ca3af; font-size:12px; }
 </style>
 </head>
 
 <body>
 
-<h1>AI Alpha Engine — Phase-2A PMS Console</h1>
+<h1>AI Alpha Engine — Phase-2A</h1>
 
+<!-- NAV -->
 <div class="card">
 <h2>Portfolio NAV</h2>
 Capital: ₹<span id="capital">--</span><br>
@@ -27,62 +31,94 @@ Value: ₹<span id="value">--</span><br>
 Return: <span id="return">--</span>%
 </div>
 
+<!-- DEPLOYMENT -->
 <div class="card">
-<h2>Live Prices</h2>
-<table id="prices"></table>
+<h2>Capital Deployment</h2>
+Deployed: ₹<span id="deployed">--</span><br>
+Remaining: ₹<span id="remaining">--</span><br>
+Weeks Elapsed: <span id="weeks">--</span><br>
+Drawdown: <span id="drawdown">--</span>%
 </div>
 
+<!-- POSITIONS -->
 <div class="card">
-<h2>AI Portfolio Brief</h2>
+<h2>Portfolio Positions</h2>
+<table id="positions"></table>
+</div>
+
+<!-- GOVERNANCE -->
+<div class="card">
+<h2>Rebalance & Governance</h2>
+Regime: <span id="regime">--</span><br>
+Stable Days: <span id="stable">--</span><br>
+Rebalance Required: <span id="rebalance">--</span>
+</div>
+
+<!-- AI -->
+<div class="card">
+<h2>AI Portfolio Intelligence</h2>
 <pre id="ai">Loading...</pre>
 </div>
 
+<!-- EVENTS -->
 <div class="card">
-<h2>Event Highlights</h2>
+<h2>Event Intelligence</h2>
 <ul id="events"></ul>
 </div>
 
 <script>
-/* ----------- CRITICAL FIX HERE ----------- */
-/* Use RELATIVE PATH that works on GitHub Pages */
 const BASE = "./output/";
 
-/* Disable aggressive caching */
 async function loadJSON(name){
   const r = await fetch(BASE + name + "?t=" + Date.now());
-  if (!r.ok) throw new Error("Missing " + name);
+  if (!r.ok) throw new Error(name + " missing");
   return await r.json();
 }
 
 async function loadText(name){
   const r = await fetch(BASE + name + "?t=" + Date.now());
-  if (!r.ok) throw new Error("Missing " + name);
+  if (!r.ok) throw new Error(name + " missing");
   return await r.text();
 }
 
 async function init(){
   try{
+
     /* NAV */
     const nav = await loadJSON("portfolio_nav.json");
     document.getElementById("capital").innerText = nav.capital.toLocaleString();
     document.getElementById("value").innerText = nav.value.toLocaleString();
     document.getElementById("return").innerText = nav.return_pct.toFixed(2);
 
-    /* Prices */
-    const prices = await loadJSON("prices_live.json");
-    let html = "<tr><th>Symbol</th><th>Price</th><th>%</th></tr>";
-    for (const s in prices){
-      const c = prices[s].change_pct ?? 0;
-      const cls = c >= 0 ? "green" : "red";
+    /* Deployment */
+    const dep = await loadJSON("deployment_state.json");
+    document.getElementById("deployed").innerText = dep.deployed.toLocaleString();
+    document.getElementById("remaining").innerText = (200000 - dep.deployed).toLocaleString();
+    document.getElementById("weeks").innerText = dep.week;
+    document.getElementById("drawdown").innerText = dep.drawdown.toFixed(2);
+
+    /* Positions */
+    const pos = await loadJSON("portfolio_positions.json");
+    let html = "<tr><th>Stock</th><th>Qty</th><th>Cost</th></tr>";
+    for (const s in pos){
       html += `<tr>
         <td>${s}</td>
-        <td>${prices[s].price ?? "-"}</td>
-        <td class="${cls}">${c.toFixed(2)}</td>
+        <td>${pos[s].quantity.toFixed(2)}</td>
+        <td>₹${pos[s].total_cost.toFixed(0)}</td>
       </tr>`;
     }
-    document.getElementById("prices").innerHTML = html;
+    document.getElementById("positions").innerHTML = html;
 
-    /* AI Brief */
+    /* Governance */
+    const sig = await loadJSON("signal_state.json");
+    const reb = await loadJSON("rebalance_flag.json");
+
+    document.getElementById("regime").innerText = sig.regime;
+    document.getElementById("stable").innerText = dep.stable_days ?? "--";
+    document.getElementById("rebalance").innerText =
+      reb.rebalance_required ? "YES" : "NO";
+
+    /* AI */
     const ai = await loadText("ai_brief.txt");
     document.getElementById("ai").innerText = ai;
 
@@ -92,7 +128,7 @@ async function init(){
       ev.highlights.map(x => `<li>${x}</li>`).join("");
 
   } catch(e){
-    console.error("Dashboard load error:", e);
+    console.error("Dashboard error:", e);
   }
 }
 
