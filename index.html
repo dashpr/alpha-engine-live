@@ -1,328 +1,505 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>AI PMS Investor Dashboard</title>
 
+<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-body{
-  margin:0;
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial;
-  background:#0b0f14;
-  color:#e6edf3;
-}
-header{
-  padding:16px 24px;
-  background:#111821;
-  border-bottom:1px solid #1f2a36;
-}
-h1{margin:0;font-size:20px;}
-
-.container{padding:20px;max-width:1200px;margin:auto;}
-
-.section{
-  background:#111821;
-  margin-bottom:20px;
-  padding:16px;
-  border-radius:10px;
-  border:1px solid #1f2a36;
-}
-
-.grid{display:grid;gap:16px;}
-.grid-2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr));}
-
-table{width:100%;border-collapse:collapse;font-size:13px;}
-th,td{padding:8px;border-bottom:1px solid #1f2a36;text-align:left;}
-
-footer{text-align:center;font-size:12px;padding:20px;opacity:.7;}
-
-.chart-box{height:260px;}
-
-.kpi{
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
-  gap:12px;
-  margin-bottom:12px;
-}
-.kpi div{
-  background:#0f1620;
-  padding:10px;
-  border-radius:8px;
-  border:1px solid #1f2a36;
-  font-size:12px;
-}
-
-.buy{color:#00e676;font-weight:bold;}
-.sell{color:#ff5252;font-weight:bold;}
-.hold{color:#4fc3f7;font-weight:bold;}
-.wait{color:#ffd740;font-weight:bold;}
-
-.star{cursor:pointer;color:#9aa7b3;}
-.star:hover{color:#ffd700;}
-
-.modal{
-  position:fixed;
-  inset:0;
-  background:#0008;
-  display:none;
-  align-items:center;
-  justify-content:center;
-}
-.modal-box{
-  background:#111821;
-  padding:20px;
-  border-radius:10px;
-  max-width:420px;
-  border:1px solid #1f2a36;
-}
+  :root{
+    --bg:#0b0f14; --card:#111821; --muted:#9aa7b3; --accent:#4fc3f7;
+  }
+  html,body{height:100%;margin:0;background:var(--bg);color:#e6edf3;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial;}
+  header{background:var(--card);padding:14px 20px;border-bottom:1px solid #1f2a36}
+  header h1{margin:0;font-size:18px}
+  .container{max-width:1200px;margin:16px auto;padding:0 16px}
+  .section{background:var(--card);border:1px solid #1f2a36;border-radius:10px;padding:16px;margin-bottom:20px}
+  .kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:12px}
+  .kpi .item{background:#0f1620;padding:10px;border-radius:8px;border:1px solid #1f2a36}
+  .chart-box{height:260px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:10px;border-bottom:1px solid #1f2a36;text-align:left}
+  .grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+  .buy{color:#00e676;font-weight:700}
+  .sell{color:#ff5252;font-weight:700}
+  .hold{color:#4fc3f7;font-weight:700}
+  .wait{color:#ffd740;font-weight:700}
+  .star{cursor:pointer;color:var(--muted)}
+  .small{font-size:12px;color:var(--muted)}
+  footer{text-align:center;padding:14px 8px;color:var(--muted);font-size:13px}
+  button.btn{background:#0f1620;border:1px solid #1f2a36;color:#e6edf3;padding:6px 10px;border-radius:6px;cursor:pointer}
+  /* debug panel */
+  #debugPanel{position:fixed;right:12px;bottom:12px;background:#071018;border:1px solid #23343f;padding:10px;border-radius:8px;z-index:999;font-size:12px}
+  #debugPanel pre{max-width:420px;max-height:220px;overflow:auto;margin:6px 0 0 0;padding:8px;background:#061018;border-radius:6px}
+  @media(max-width:680px){
+    .chart-box{height:180px}
+    .kpi{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
+  }
 </style>
 </head>
-
 <body>
-
-<header><h1>AI PMS Investor Dashboard</h1></header>
+<header><div class="container"><h1>AI PMS Investor Dashboard</h1></div></header>
 
 <div class="container">
 
-<!-- KPI + NAV -->
-<div class="section">
-<div class="kpi" id="kpiStrip"></div>
-<div class="chart-box"><canvas id="navChart"></canvas></div>
-</div>
+  <!-- Performance + NAV -->
+  <div class="section" id="perfSection">
+    <div class="kpi" id="kpiStrip">
+      <!-- KPI items injected here -->
+    </div>
+    <div class="chart-box"><canvas id="navChart" aria-label="NAV chart"></canvas></div>
+  </div>
 
-<!-- PORTFOLIO -->
-<div class="section">
-<h2>Portfolio Snapshot</h2>
-<table id="portfolioTable"></table>
-</div>
+  <!-- Portfolio -->
+  <div class="section">
+    <h2 style="margin:0 0 12px 0">Portfolio Snapshot</h2>
+    <div id="portfolioWrapper">
+      <table id="portfolioTable"><tbody><tr><td class="small">Loading...</td></tr></tbody></table>
+    </div>
+  </div>
 
-<!-- WATCHLIST -->
-<div class="section grid grid-2">
-<div>
-<h2>Current Signals / Watchlist</h2>
-<table id="signalsTable"></table>
-</div>
-<div>
-<h2>Past Watchlist / Exit Ledger</h2>
-<table id="pastTable"></table>
-</div>
-</div>
+  <!-- Signals & Past -->
+  <div class="section grid-2">
+    <div>
+      <h2 style="margin:0 0 12px 0">Current Signals / Watchlist</h2>
+      <table id="signalsTable"><tbody><tr><td class="small">Loading...</td></tr></tbody></table>
+    </div>
+    <div>
+      <h2 style="margin:0 0 12px 0">Past Watchlist / Exit Ledger</h2>
+      <table id="pastTable"><tbody><tr><td class="small">Loading...</td></tr></tbody></table>
+    </div>
+  </div>
 
-<!-- RISK -->
-<div class="section">
-<h2>Risk Metrics & Stability Matrix</h2>
-<table id="riskTable"></table>
-</div>
+  <!-- Risk -->
+  <div class="section">
+    <h2 style="margin:0 0 12px 0">Risk Metrics & Stability Matrix</h2>
+    <table id="riskTable"><tbody><tr><td class="small">Loading...</td></tr></tbody></table>
+  </div>
 
-<!-- REBALANCE -->
-<div class="section">
-<h2>Rebalance Governance</h2>
-<p id="rebalanceText"></p>
-</div>
+  <!-- Rebalance & CIO -->
+  <div class="section">
+    <h2 style="margin:0 0 12px 0">Rebalance Governance</h2>
+    <p id="rebalanceText" class="small">Loading...</p>
+  </div>
 
-<!-- CIO -->
-<div class="section">
-<h2>CIO Commentary</h2>
-<div id="cioText"></div>
-</div>
+  <div class="section">
+    <h2 style="margin:0 0 12px 0">CIO Commentary</h2>
+    <div id="cioText" class="small">Loading...</div>
+  </div>
 
 </div>
 
 <footer>
-<div id="timestamp"></div>
-© Pravash Dash
+  <div id="timestamp">Last Updated: -</div>
+  <div class="small">© Pravash Dash</div>
 </footer>
 
-<!-- MODAL -->
-<div class="modal" id="modal">
-<div class="modal-box">
-<div id="modalText"></div>
-<br>
-<button onclick="modal.style.display='none'">Close</button>
+<!-- Explainability modal -->
+<div id="modal" style="display:none;position:fixed;inset:0;background:#0009;align-items:center;justify-content:center;z-index:9999">
+  <div style="background:#0f1620;border:1px solid #1f2a36;padding:16px;border-radius:10px;max-width:520px;margin:auto">
+    <div id="modalTitle" style="font-weight:700;margin-bottom:8px">Explainability</div>
+    <div id="modalBody" style="white-space:pre-wrap;font-size:13px;color:#dbe7ef"></div>
+    <div style="text-align:right;margin-top:12px">
+      <button class="btn" onclick="document.getElementById('modal').style.display='none'">Close</button>
+    </div>
+  </div>
 </div>
+
+<!-- Small debug panel (toggleable) -->
+<div id="debugPanel" style="display:none">
+  <div style="display:flex;gap:8px;align-items:center">
+    <strong>UI Debug</strong>
+    <button class="btn" id="closeDebug">Hide</button>
+  </div>
+  <div class="small" id="debugSummary">loading...</div>
+  <pre id="debugRaw"></pre>
 </div>
 
 <script>
-const JSON_URL = "/alpha-engine-live/output/dashboard_data.json";
-let navChart;
+/*
+  Robust, schema-tolerant dashboard UI.
+  - Replace JSON_URL to your canonical path if necessary.
+  - This file attempts to map many common key variants.
+*/
+const JSON_URL = "/alpha-engine-live/output/dashboard_data.json"; // adjust only if your repo serves JSON from a different path
+const POLL_MS = 300_000; // refresh interval
 
-// ---------- LOAD DATA ----------
-async function loadData(){
-  const res = await fetch(JSON_URL, {cache:"no-store"});
-  return await res.json();
+// DOM shortcuts
+const kpiStrip = document.getElementById("kpiStrip");
+const navCtx = document.getElementById("navChart").getContext("2d");
+const portfolioTable = document.getElementById("portfolioTable");
+const signalsTable = document.getElementById("signalsTable");
+const pastTable = document.getElementById("pastTable");
+const riskTable = document.getElementById("riskTable");
+const rebalanceText = document.getElementById("rebalanceText");
+const cioText = document.getElementById("cioText");
+const timestampNode = document.getElementById("timestamp");
+const modal = document.getElementById("modal");
+const modalBody = document.getElementById("modalBody");
+const debugPanel = document.getElementById("debugPanel");
+const debugSummary = document.getElementById("debugSummary");
+const debugRaw = document.getElementById("debugRaw");
+document.getElementById("closeDebug").onclick = ()=> debugPanel.style.display='none';
+
+let navChart = null;
+
+// Utility: safe number
+function toNum(v, fallback=0){
+  if(v===null||v===undefined) return fallback;
+  if(typeof v==="number") return v;
+  const n = parseFloat(String(v).replace(",",""));
+  return isNaN(n)?fallback:n;
 }
 
-// ---------- KPI ----------
-function renderKPI(d){
-  const start = d.equity_values?.[0] || 0;
-  const end = d.equity_values?.at(-1) || 0;
-  const ret = start ? (((end - start)/start)*100).toFixed(2) : "0";
-
-  const kpis = [
-    ["Current NAV", end],
-    ["Return %", ret],
-    ["Max DD %", d.max_drawdown_pct],
-    ["Volatility %", d.volatility_pct],
-    ["Sharpe", d.sharpe],
-    ["Regime", d.regime]
-  ];
-
-  kpiStrip.innerHTML = kpis.map(k =>
-    `<div><b>${k[0]}</b><br>${k[1] ?? ""}</div>`
-  ).join("");
+// Utility: try many field names
+function pick(obj, names){
+  if(!obj) return undefined;
+  for(const n of names){
+    if(n in obj && obj[n]!==undefined) return obj[n];
+  }
+  return undefined;
 }
 
-// ---------- NAV CHART ----------
-function renderChart(d){
-  if(navChart) navChart.destroy();
+// Normalize holdings: support many possible schemas
+function normalizeHoldings(raw){
+  if(!raw) return [];
 
-  navChart = new Chart(navChartCanvas, {
-    type:"line",
-    data:{
-      labels:d.equity_dates,
-      datasets:[
-        {label:"Model Equity", data:d.equity_values, tension:0.3},
-        {label:"Nifty 50", data:d.nifty_values, tension:0.3}
-      ]
-    },
-    options:{responsive:true, maintainAspectRatio:false}
+  // if CSV string, attempt simple parse (rare)
+  if(typeof raw === "string" && raw.trim().includes(",")){
+    // try simple CSV -> rows
+    const rows = raw.trim().split("\n").map(r=>r.split(","));
+    // if header present:
+    const header = rows[0].map(h=>h.trim().toLowerCase());
+    return rows.slice(1).map(r=>{
+      const obj = {};
+      r.forEach((cell,i)=> obj[header[i]] = cell.trim());
+      return obj;
+    });
+  }
+
+  if(!Array.isArray(raw)) return [];
+
+  return raw.map(item=>{
+    // common variants:
+    const ticker = pick(item, ["ticker","symbol","t","code"]) || pick(item, ["Ticker","Symbol"]);
+    const qty = pick(item, ["qty","quantity","shares","share_count","q"]) || pick(item, ["Qty","Quantity"]);
+    const live_price = pick(item, ["live_price","livePrice","price","last_price","lastPrice","close"]) || pick(item, ["LivePrice"]);
+    const position_value = pick(item, ["position_value","positionValue","value","market_value","mv"]) || null;
+    const pnl_abs = pick(item, ["pnl_abs","pnl","absolute_pnl","pnlAbs"]);
+    const pnl_pct = pick(item, ["pnl_pct","pnlPct","pnl_percent","pnl%","pnLpercentage"]);
+    const weight_percent = pick(item, ["weight_percent","weight","weight%","weightPct","weight_percent"]) || pick(item, ["allocation","alloc_pct"]);
+
+    const nqty = qty!==undefined && qty!==null ? toNum(qty, null) : null;
+    const nprice = live_price!==undefined && live_price!==null ? toNum(live_price, null) : null;
+    let npos = position_value!==undefined && position_value!==null ? toNum(position_value, null) : null;
+
+    // compute position value if missing
+    if((npos===null || isNaN(npos)) && nqty!==null && nprice!==null){
+      npos = nqty * nprice;
+    }
+
+    return {
+      ticker: String(ticker || "").toUpperCase(),
+      qty: nqty,
+      live_price: nprice,
+      position_value: npos,
+      pnl_abs: pnl_abs!==undefined?toNum(pnl_abs,null):null,
+      pnl_pct: pnl_pct!==undefined?toNum(pnl_pct,null):null,
+      weight_percent: weight_percent!==undefined?toNum(weight_percent,null):null,
+      raw: item
+    };
   });
 }
 
-// ---------- PORTFOLIO ----------
-function renderPortfolio(rows){
-  if(!rows?.length){
-    portfolioTable.innerHTML="<tr><td>No positions</td></tr>";
+// Normalize trades/signals
+function normalizeTrades(raw){
+  if(!raw) return [];
+  if(!Array.isArray(raw)) return [];
+  return raw.map(t=>{
+    return {
+      ticker: pick(t, ["ticker","symbol","t"]) || pick(t, ["Ticker","Symbol"]) || (t.ticker?String(t.ticker):""),
+      signal: pick(t, ["signal","Signal","sig"]) || pick(t, ["action"]) || "HOLD",
+      reason: pick(t, ["reason","explain","explanation","r"]) || ""
+    };
+  });
+}
+
+// Normalize watchlist history
+function normalizeHistory(raw){
+  if(!raw) return [];
+  if(Array.isArray(raw)) return raw.map(r=>{
+    return {
+      symbol: pick(r, ["symbol","ticker","sym"]) || r.symbol || r.ticker || "",
+      included_on: pick(r, ["included_on","includedOn","entry_date","entry"]) || r.included_on || r.entry_date || "",
+      exited_on: pick(r, ["exited_on","exitedOn","exit_date"]) || r.exited_on || r.exit_date || null,
+      reason: pick(r, ["reason","r","exit_reason"]) || ""
+    };
+  });
+  // fallback empty
+  return [];
+}
+
+// Robust JSON fetch with debug info
+async function fetchJson(url){
+  try{
+    const res = await fetch(url, {cache:"no-store"});
+    const text = await res.text();
+    try{
+      const data = JSON.parse(text);
+      return {ok:true, data, raw:text};
+    }catch(e){
+      return {ok:false, err:"JSON_PARSE_ERROR", raw:text, msg:e.message};
+    }
+  }catch(e){
+    return {ok:false, err:"FETCH_ERROR", msg:e.message};
+  }
+}
+
+// render small debug panel
+function showDebug(summary, raw){
+  debugSummary.innerText = summary;
+  debugRaw.innerText = (typeof raw === "string") ? raw : JSON.stringify(raw, null, 2);
+  debugPanel.style.display='block';
+}
+
+// render KPI strip
+function renderKPI(d){
+  const first = (d.equity_values && d.equity_values.length>0) ? toNum(d.equity_values[0],0) : 0;
+  const last = (d.equity_values && d.equity_values.length>0) ? toNum(d.equity_values.at(-1),0) : 0;
+  const ret = first ? (((last-first)/first)*100).toFixed(2) : "0.00";
+  const items = [
+    ["Current NAV", last],
+    ["Return %", ret],
+    ["Max DD %", d.max_drawdown_pct ?? d.max_drawdown ?? 0],
+    ["Volatility %", d.volatility_pct ?? d.volatility ?? 0],
+    ["Sharpe", d.sharpe ?? 0],
+    ["Regime", d.regime ?? ""]
+  ];
+  kpiStrip.innerHTML = items.map(it=>`<div class="item"><div style="font-size:12px;color:var(--muted)">${it[0]}</div><div style="font-weight:700;margin-top:6px">${it[1]}</div></div>`).join("");
+}
+
+// render NAV chart safely
+function renderNavChart(d){
+  const labels = Array.isArray(d.equity_dates) ? d.equity_dates : [];
+  const equity = Array.isArray(d.equity_values) ? d.equity_values.map(v=> (v===null||v===undefined)?null:toNum(v,null)) : [];
+  const nifty = Array.isArray(d.nifty_values) ? d.nifty_values.map(v=> (v===null||v===undefined)?null:toNum(v,null)) : [];
+
+  if(navChart) navChart.destroy();
+  navChart = new Chart(navCtx, {
+    type:'line',
+    data:{labels, datasets:[
+      {label:'Model Equity', data:equity, borderColor:'#4fc3f7', backgroundColor:'transparent', spanGaps:true},
+      {label:'Nifty 50', data:nifty, borderColor:'#ff7b94', backgroundColor:'transparent', spanGaps:true}
+    ]},
+    options:{responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false}}
+  });
+}
+
+// render portfolio - compute weights if missing
+function renderPortfolio(holdings){
+  if(!holdings || holdings.length===0){
+    portfolioTable.innerHTML = `<tbody><tr><td class="small">No positions</td></tr></tbody>`;
     return;
   }
 
-  const total = rows.reduce((s,r)=>s + (r.position_value || 0),0);
+  // compute total value (from available position_value or qty*price)
+  let total = 0;
+  for(const h of holdings){
+    const v = (h.position_value!==null && h.position_value!==undefined) ? toNum(h.position_value,0) : ((toNum(h.qty,0) * toNum(h.live_price,0)) || 0);
+    total += v;
+  }
 
-  let html = `
-  <tr>
-    <th>Ticker</th>
-    <th>Qty</th>
-    <th>Live</th>
-    <th>Value</th>
-    <th>Weight %</th>
-  </tr>`;
-
-  rows.forEach(r=>{
-    const weight = total ? ((r.position_value/total)*100).toFixed(2) : "";
-
-    html += `
-    <tr>
-      <td>${r.ticker}</td>
-      <td>${r.qty}</td>
-      <td>${r.live_price?.toFixed(2)}</td>
-      <td>${r.position_value?.toFixed(0)}</td>
+  let html = `<thead><tr><th>Ticker</th><th>Qty</th><th>Live</th><th>Value</th><th>Weight%</th><th>P&L%</th></tr></thead><tbody>`;
+  for(const h of holdings){
+    const ticker = h.ticker || "";
+    const qty = h.qty!==null && h.qty!==undefined ? h.qty : "";
+    const live = (h.live_price!==null && h.live_price!==undefined) ? toNum(h.live_price,"") : "";
+    const value = (h.position_value!==null && h.position_value!==undefined) ? toNum(h.position_value,0) : (qty && live ? qty*live : 0);
+    const weight = total ? ((value/total)*100).toFixed(2) : "";
+    const pnl_pct = (h.pnl_pct!==null && h.pnl_pct!==undefined) ? toNum(h.pnl_pct,"") : "";
+    html += `<tr>
+      <td>${ticker}</td>
+      <td>${qty}</td>
+      <td>${live!==""?Number(live).toFixed(2):""}</td>
+      <td>${value?Number(value).toFixed(0):""}</td>
       <td>${weight}</td>
+      <td>${pnl_pct!==""?Number(pnl_pct).toFixed(2):""}</td>
     </tr>`;
-  });
-
+  }
+  html += "</tbody>";
   portfolioTable.innerHTML = html;
 }
 
-// ---------- SIGNALS ----------
+// render signals with color class and explainability
 function renderSignals(trades){
-  if(!trades?.length){
-    signalsTable.innerHTML="<tr><td>No signals</td></tr>";
+  if(!trades || trades.length===0){
+    signalsTable.innerHTML = `<tbody><tr><td class="small">No signals</td></tr></tbody>`;
     return;
   }
-
-  let html = "<tr><th>Ticker</th><th>Signal</th><th>*</th></tr>";
-
-  trades.forEach(t=>{
-    const cls = t.signal.toLowerCase();
-    html += `
-      <tr>
-        <td>${t.ticker}</td>
-        <td class="${cls}">${t.signal}</td>
-        <td class="star" onclick="showReason('${t.reason}')">★</td>
-      </tr>`;
-  });
-
+  let html = `<thead><tr><th>Ticker</th><th>Signal</th><th>Explain</th></tr></thead><tbody>`;
+  for(const t of trades){
+    const ticker = (t.ticker||t.symbol||"").toUpperCase();
+    const signal = (t.signal||"HOLD").toUpperCase();
+    const reason = t.reason || t.explain || "";
+    const cls = signal.toLowerCase().startsWith("buy") ? 'buy' : signal.toLowerCase().startsWith("sell") ? 'sell' : signal.toLowerCase().startsWith("wait") ? 'wait' : 'hold';
+    html += `<tr>
+      <td>${ticker}</td>
+      <td class="${cls}">${signal}</td>
+      <td style="text-align:center"><span class="star" onclick="openExplain('${escapeHtml(reason)}')">★</span></td>
+    </tr>`;
+  }
+  html += "</tbody>";
   signalsTable.innerHTML = html;
 }
 
-// ---------- WATCHLIST HISTORY ----------
-function renderPast(rows){
-  if(!rows?.length){
-    pastTable.innerHTML="<tr><td>No history</td></tr>";
+// render past watchlist
+function renderPast(history){
+  if(!history || history.length===0){
+    pastTable.innerHTML = `<tbody><tr><td class="small">No history</td></tr></tbody>`;
     return;
   }
-
-  let html = "<tr><th>Symbol</th><th>Entry</th><th>Exit</th><th>Reason</th></tr>";
-
-  rows.forEach(r=>{
-    html += `
-      <tr>
-        <td>${r.symbol}</td>
-        <td>${r.included_on}</td>
-        <td>${r.exited_on ?? ""}</td>
-        <td>${r.reason}</td>
-      </tr>`;
-  });
-
+  let html = `<thead><tr><th>Symbol</th><th>Included</th><th>Exited</th><th>Reason</th></tr></thead><tbody>`;
+  for(const r of history){
+    html += `<tr>
+      <td>${r.symbol || r.ticker || ""}</td>
+      <td>${r.included_on||r.includedOn||""}</td>
+      <td>${r.exited_on||r.exitedOn||r.exited||""}</td>
+      <td>${r.reason||""}</td>
+    </tr>`;
+  }
+  html += "</tbody>";
   pastTable.innerHTML = html;
 }
 
-// ---------- RISK ----------
+// render risk table
 function renderRisk(d){
   const rows = [
-    ["Regime", d.regime, "Model risk posture"],
-    ["Volatility %", d.volatility_pct, "Realized volatility"],
-    ["Sharpe", d.sharpe, "Risk-adjusted return"],
-    ["Max Drawdown %", d.max_drawdown_pct, "Peak-to-trough fall"]
+    ["Regime", d.regime || "" , "Model risk posture"],
+    ["Volatility %", toNum(d.volatility_pct ?? d.volatility ?? 0, 0), "Realized volatility"],
+    ["Sharpe", d.sharpe ?? 0, "Risk-adjusted return"],
+    ["Max Drawdown %", d.max_drawdown_pct ?? d.max_drawdown ?? 0, "Peak-to-trough fall"]
   ];
-
-  riskTable.innerHTML =
-    "<tr><th>Metric</th><th>Value</th><th>Explainability</th></tr>" +
-    rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join("");
+  let html = `<thead><tr><th>Metric</th><th>Value</th><th>Explain</th></tr></thead><tbody>`;
+  for(const r of rows) html += `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`;
+  html += "</tbody>";
+  riskTable.innerHTML = html;
 }
 
-// ---------- REBALANCE ----------
+// render rebalance & countdown
 function renderRebalance(d){
-  const next = new Date(d.next_rebalance);
-  const today = new Date();
-  const days = Math.ceil((next - today)/86400000);
-
-  rebalanceText.innerText =
-    `Last Rebalance: ${d.last_rebalance} | Next: ${d.next_rebalance} | Countdown: ${days} days`;
+  const last = d.last_rebalance || d.lastRebalance || d.last || "";
+  const next = d.next_rebalance || d.nextRebalance || d.next || "";
+  let days = "";
+  try{
+    if(next) {
+      const diff = (new Date(next) - new Date())/86400000;
+      days = Math.ceil(diff);
+      if(isNaN(days)) days = "";
+    }
+  }catch(e){}
+  rebalanceText.innerText = `Last: ${last} | Next: ${next} | Countdown: ${days !== "" ? days + ' days' : 'N/A'}`;
 }
 
-// ---------- CIO ----------
+// render CIO
 function renderCIO(d){
-  cioText.innerText = d.cio_commentary;
+  cioText.innerText = d.cio_commentary || d.cio || d.commentary || "";
 }
 
-// ---------- MODAL ----------
-function showReason(text){
-  modal.style.display="flex";
-  modalText.innerText=text;
+// escape for modal
+function escapeHtml(str){
+  if(!str && str!==0) return "";
+  return String(str).replace(/'/g,"&#39;").replace(/"/g,"&quot;");
 }
 
-// ---------- INIT ----------
-async function init(){
-  const d = await loadData();
-
-  renderKPI(d);
-  renderChart(d);
-  renderPortfolio(d.holdings);
-  renderSignals(d.trades);
-  renderPast(d.watchlist_history);
-  renderRisk(d);
-  renderRebalance(d);
-  renderCIO(d);
-
-  timestamp.innerText = "Last Updated: " + new Date(d.timestamp).toLocaleString();
+// open explainability modal
+function openExplain(reason){
+  document.getElementById('modalBody').innerText = reason || "No explanation available";
+  document.getElementById('modal').style.display = 'flex';
 }
 
-init();
-setInterval(init, 300000);
+// main update
+async function update(){
+  // fetch
+  const res = await fetchJson(JSON_URL);
+  if(!res.ok){
+    // show debug panel with raw response or error
+    showDebug("Fetch failed: " + (res.err||"unknown"), res.raw || res.msg || "");
+    return;
+  }
+  const d = res.data;
+
+  // quick sanity: gather detected keys for debug
+  const detected = {
+    keys: Object.keys(d||{}),
+    holdings_type: Array.isArray(d.holdings) ? "holdings-array" : (d.portfolio ? "portfolio" : "unknown"),
+    trades_type: Array.isArray(d.trades) ? "trades-array" : (Array.isArray(d.signals) ? "signals-array" : "unknown")
+  };
+
+  // normalize: try to find holdings in multiple candidate locations
+  let rawHoldings = d.holdings || d.positions || d.portfolio || d.portfolio_positions || pick(d, ["holdings","positions","portfolio","portfolio_positions"]);
+  let rawTrades = d.trades || d.signals || d.trade || d.signal_state || pick(d, ["trades","signals","trade","signal_state"]);
+  let rawHistory = d.watchlist_history || d.watchlist || d.history || pick(d, ["watchlist_history","watchlist","history"]);
+  // if some are objects instead of arrays, try to unwrap
+  if(rawHoldings && !Array.isArray(rawHoldings) && typeof rawHoldings === "object"){
+    // sometimes holdings object contains a key 'items'
+    if(Array.isArray(rawHoldings.items)) rawHoldings = rawHoldings.items;
+    else rawHoldings = Object.values(rawHoldings);
+  }
+
+  // normalize into arrays of objects
+  const holdings = normalizeHoldings(rawHoldings);
+  const trades = normalizeTrades(rawTrades);
+  const history = normalizeHistory(rawHistory);
+
+  // If holdings have weight missing and total exists, compute weights
+  // compute total position value:
+  let totalVal = 0;
+  holdings.forEach(h => {
+    const v = h.position_value !== null && h.position_value !== undefined ? toNum(h.position_value,0) : ( (toNum(h.qty,0) * toNum(h.live_price,0)) || 0 );
+    totalVal += v;
+  });
+  holdings.forEach(h=>{
+    if((h.weight_percent===null || h.weight_percent===undefined) && totalVal>0){
+      h.weight_percent = (( (h.position_value!==null && h.position_value!==undefined) ? h.position_value : (toNum(h.qty,0) * toNum(h.live_price,0)) )/ totalVal * 100);
+      if(!isFinite(h.weight_percent)) h.weight_percent = null;
+    }
+  });
+
+  // render pieces
+  try{
+    renderKPI(d);
+    renderNavChart(d);
+    renderPortfolio(holdings);
+    renderSignals(trades);
+    renderPast(history);
+    renderRisk(d);
+    renderRebalance(d);
+    renderCIO(d);
+    timestampNode.innerText = "Last Updated: " + (d.timestamp ? new Date(d.timestamp).toLocaleString() : new Date().toLocaleString());
+  }catch(e){
+    showDebug("Render error: " + e.message, e.stack || JSON.stringify(e));
+    console.error(e);
+  }
+
+  // update debug summary (but leave hidden by default)
+  const sum = `keys: ${detected.keys.join(", ")}\nholdings:${holdings.length} trades:${trades.length} history:${history.length}`;
+  debugSummary.innerText = sum;
+  debugRaw.innerText = JSON.stringify({detected, holdingsSample: holdings.slice(0,3), tradesSample: trades.slice(0,3), rawKeys:Object.keys(d||{})}, null, 2);
+}
+
+// small helper to show debug quickly with Ctrl+D
+document.addEventListener('keydown',(e)=>{
+  if(e.ctrlKey && e.key.toLowerCase()==='d'){
+    debugPanel.style.display = debugPanel.style.display==='block' ? 'none' : 'block';
+  }
+});
+
+// initial run + poll
+update();
+setInterval(update, POLL_MS);
 </script>
 
 </body>
