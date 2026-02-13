@@ -1,0 +1,29 @@
+name: Phase2 Run
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 * * * 1-5"   # hourly weekdays
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install requests
+
+      - run: python -m phase2.orchestrator
+
+      - name: Commit data
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add phase2/data/*.json
+          git commit -m "Phase2 data update" || echo "No changes"
+          git push
