@@ -1,11 +1,9 @@
 """
-PHASE-2 INSTITUTIONAL DASHBOARD BUILDER
---------------------------------------
+PHASE-2 DASHBOARD BUILDER (GITHUB PAGES SAFE)
+---------------------------------------------
 
-Creates deterministic dashboard JSON for investor UI.
-
-Output:
-dashboard/data.json
+Creates dashboard/data.json directly inside repo
+so GitHub Pages can serve it without extra git logic.
 """
 
 import os
@@ -15,16 +13,15 @@ from datetime import datetime
 
 
 DATA_PATH = "data"
-DASHBOARD_PATH = "dashboard"
-OUTPUT_FILE = os.path.join(DASHBOARD_PATH, "data.json")
+DASHBOARD_DIR = "dashboard"
+OUTPUT_JSON = os.path.join(DASHBOARD_DIR, "data.json")
 
 
 def log(msg: str):
     print(f"[DASHBOARD] {msg}")
 
 
-def safe_read_csv(path: str) -> pd.DataFrame:
-    """Read CSV safely. Returns empty DF if missing."""
+def read_csv_safe(path: str) -> pd.DataFrame:
     if not os.path.exists(path):
         return pd.DataFrame()
     try:
@@ -33,16 +30,12 @@ def safe_read_csv(path: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def build_dashboard_payload() -> dict:
-    """
-    Assemble full institutional dashboard payload.
-    """
-
-    signals = safe_read_csv(os.path.join(DATA_PATH, "signals.csv"))
-    portfolio = safe_read_csv(os.path.join(DATA_PATH, "portfolio.csv"))
-    nav = safe_read_csv(os.path.join(DATA_PATH, "nav.csv"))
-    risk = safe_read_csv(os.path.join(DATA_PATH, "risk.csv"))
-    commentary = safe_read_csv(os.path.join(DATA_PATH, "commentary.csv"))
+def build_payload() -> dict:
+    signals = read_csv_safe(os.path.join(DATA_PATH, "signals.csv"))
+    portfolio = read_csv_safe(os.path.join(DATA_PATH, "portfolio.csv"))
+    nav = read_csv_safe(os.path.join(DATA_PATH, "nav.csv"))
+    risk = read_csv_safe(os.path.join(DATA_PATH, "risk.csv"))
+    commentary = read_csv_safe(os.path.join(DATA_PATH, "commentary.csv"))
 
     payload = {
         "timestamp": datetime.utcnow().isoformat(),
@@ -51,24 +44,29 @@ def build_dashboard_payload() -> dict:
         "nav": nav.to_dict(orient="records"),
         "risk": risk.to_dict(orient="records"),
         "commentary": commentary.to_dict(orient="records"),
+        "watchlist_past": [],     # placeholder safe default
+        "rebalance": {
+            "last": "NA",
+            "next_days": "NA"
+        }
     }
 
     return payload
 
 
-def save_dashboard_json(payload: dict):
-    os.makedirs(DASHBOARD_PATH, exist_ok=True)
+def save_json(payload: dict):
+    os.makedirs(DASHBOARD_DIR, exist_ok=True)
 
-    with open(OUTPUT_FILE, "w") as f:
+    with open(OUTPUT_JSON, "w") as f:
         json.dump(payload, f, indent=2)
 
-    log(f"Dashboard JSON saved → {OUTPUT_FILE}")
+    log(f"Saved → {OUTPUT_JSON}")
 
 
 def build_dashboard():
-    log("Building dashboard payload...")
-    payload = build_dashboard_payload()
-    save_dashboard_json(payload)
+    log("Building dashboard JSON...")
+    payload = build_payload()
+    save_json(payload)
     log("Dashboard build complete.")
 
 
