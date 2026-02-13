@@ -1,4 +1,30 @@
 <!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Alpha Engine — PMS Console</title>
+
+<style>
+body { font-family: Arial; background:#0b1220; color:#e5e7eb; margin:30px; }
+.card { background:#111827; padding:20px; border-radius:14px; margin-bottom:20px; }
+h1 { margin-bottom:10px; }
+table { width:100%; border-collapse:collapse; }
+th, td { padding:10px; border-bottom:1px solid #1f2937; }
+.green { color:#22c55e; }
+.red { color:#ef4444; }
+</style>
+</head>
+
+<body>
+
+<h1>AI Alpha Engine — Phase-2A PMS Console</h1>
+
+<div class="card">
+<h2>Portfolio NAV</h2>
+Capital: ₹<span id="capital">--</span><br>
+Value: ₹<span id="value">--</span><br>
+Return: <span id="return">--</span>%
 </div>
 
 <div class="card">
@@ -8,7 +34,7 @@
 
 <div class="card">
 <h2>AI Portfolio Brief</h2>
-<pre id="ai"></pre>
+<pre id="ai">Loading...</pre>
 </div>
 
 <div class="card">
@@ -17,41 +43,57 @@
 </div>
 
 <script>
-const BASE = "output/";
+/* ----------- CRITICAL FIX HERE ----------- */
+/* Use RELATIVE PATH that works on GitHub Pages */
+const BASE = "./output/";
 
+/* Disable aggressive caching */
 async function loadJSON(name){
   const r = await fetch(BASE + name + "?t=" + Date.now());
+  if (!r.ok) throw new Error("Missing " + name);
   return await r.json();
 }
 
 async function loadText(name){
   const r = await fetch(BASE + name + "?t=" + Date.now());
+  if (!r.ok) throw new Error("Missing " + name);
   return await r.text();
 }
 
 async function init(){
   try{
+    /* NAV */
     const nav = await loadJSON("portfolio_nav.json");
-    document.getElementById("capital").innerText = nav.capital;
-    document.getElementById("value").innerText = nav.value;
-    document.getElementById("return").innerText = nav.return_pct;
+    document.getElementById("capital").innerText = nav.capital.toLocaleString();
+    document.getElementById("value").innerText = nav.value.toLocaleString();
+    document.getElementById("return").innerText = nav.return_pct.toFixed(2);
 
+    /* Prices */
     const prices = await loadJSON("prices_live.json");
     let html = "<tr><th>Symbol</th><th>Price</th><th>%</th></tr>";
     for (const s in prices){
       const c = prices[s].change_pct ?? 0;
       const cls = c >= 0 ? "green" : "red";
-      html += `<tr><td>${s}</td><td>${prices[s].price}</td><td class="${cls}">${c.toFixed(2)}</td></tr>`;
+      html += `<tr>
+        <td>${s}</td>
+        <td>${prices[s].price ?? "-"}</td>
+        <td class="${cls}">${c.toFixed(2)}</td>
+      </tr>`;
     }
     document.getElementById("prices").innerHTML = html;
 
+    /* AI Brief */
     const ai = await loadText("ai_brief.txt");
     document.getElementById("ai").innerText = ai;
 
+    /* Events */
     const ev = await loadJSON("event_feed.json");
-    document.getElementById("events").innerHTML = ev.highlights.map(x => `<li>${x}</li>`).join("");
+    document.getElementById("events").innerHTML =
+      ev.highlights.map(x => `<li>${x}</li>`).join("");
 
-  } catch(e){ console.error(e); }
+  } catch(e){
+    console.error("Dashboard load error:", e);
+  }
 }
 
 init();
