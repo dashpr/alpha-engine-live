@@ -1,13 +1,65 @@
 {
-  "timestamp": "2026-02-13T05:19:32.342647+00:00",
-  "stocks": [
-    "RELIANCE.NS",
-    "HDFCBANK.NS"
-  ],
-  "weights": {
-    "RELIANCE.NS": 0.5,
-    "HDFCBANK.NS": 0.5
-  },
-  "regime": "NEUTRAL",
-  "rebalance_required": false
+  "timestamp": "2026-02-13T06:23:59.206153",
+  "holdings": [
+    {
+      "symbol": "RELIANCE.NS",
+      "weight": 6.67
+    },
+    {
+      "symbol": "HDFCBANK.NS",
+      "weight": 6.67
+    },
+    {
+      "symbol": "ICICIBANK.NS",
+      "weight": 6.67
+    },
+    {
+      "symbol": "INFY.NS",
+      "weight": 6.67
+    },
+    {
+      "symbol": "TCS.NS",
+      "weight": 6.67
+    },
+    {
+      "symbol": "ITC.NS",
+      "weight": 6.67
+    },
+    {
+      "symbol": "LT.NS",
+      "weight": 6.67
+    },
+    {
+      "symbol": "SBIN.NS",
+      "weight": 6.67
+    },
+    {
+      "symbol": "BHARTIARTL.NS",
+      "weight": 6.67
+    },
+    {
+      "symbol": "ASIANPAINT.NS",
+      "weight": 6.67
+    },
+    {
+      "symbol": "AXISBANK.NS",
+      "weight": 6.67
+    },
+    {
+      "symbol": "KOTAKBANK.NS",
+      "weight": 6.67
+    },
+    {
+      "symbol": "MARUTI.NS",
+      "weight": 6.67
+    },
+    {
+      "symbol": "HCLTECH.NS",
+      "weight": 6.67
+    },
+    {
+      "symbol": "SUNPHARMA.NS",
+      "weight": 6.67
+    }
+  ]
 }

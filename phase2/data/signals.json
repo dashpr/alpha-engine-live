@@ -1,0 +1,125 @@
+{
+  "timestamp": "2026-02-13T06:23:59.204323",
+  "top_signals": [
+    {
+      "symbol": "RELIANCE.NS",
+      "momentum": 0,
+      "volatility": 1,
+      "score": 0
+    },
+    {
+      "symbol": "HDFCBANK.NS",
+      "momentum": 0,
+      "volatility": 1,
+      "score": 0
+    },
+    {
+      "symbol": "ICICIBANK.NS",
+      "momentum": 0,
+      "volatility": 1,
+      "score": 0
+    },
+    {
+      "symbol": "INFY.NS",
+      "momentum": 0,
+      "volatility": 1,
+      "score": 0
+    },
+    {
+      "symbol": "TCS.NS",
+      "momentum": 0,
+      "volatility": 1,
+      "score": 0
+    },
+    {
+      "symbol": "ITC.NS",
+      "momentum": 0,
+      "volatility": 1,
+      "score": 0
+    },
+    {
+      "symbol": "LT.NS",
+      "momentum": 0,
+      "volatility": 1,
+      "score": 0
+    },
+    {
+      "symbol": "SBIN.NS",
+      "momentum": 0,
+      "volatility": 1,
+      "score": 0
+    },
+    {
+      "symbol": "BHARTIARTL.NS",
+      "momentum": 0,
+      "volatility": 1,
+      "score": 0
+    },
+    {
+      "symbol": "ASIANPAINT.NS",
+      "momentum": 0,
+      "volatility": 1,
+      "score": 0
+    },
+    {
+      "symbol": "AXISBANK.NS",
+      "momentum": 0,
+      "volatility": 1,
+      "score": 0
+    },
+    {
+      "symbol": "KOTAKBANK.NS",
+      "momentum": 0,
+      "volatility": 1,
+      "score": 0
+    },
+    {
+      "symbol": "MARUTI.NS",
+      "momentum": 0,
+      "volatility": 1,
+      "score": 0
+    },
+    {
+      "symbol": "HCLTECH.NS",
+      "momentum": 0,
+      "volatility": 1,
+      "score": 0
+    },
+    {
+      "symbol": "SUNPHARMA.NS",
+      "momentum": 0,
+      "volatility": 1,
+      "score": 0
+    },
+    {
+      "symbol": "TITAN.NS",
+      "momentum": 0,
+      "volatility": 1,
+      "score": 0
+    },
+    {
+      "symbol": "ULTRACEMCO.NS",
+      "momentum": 0,
+      "volatility": 1,
+      "score": 0
+    },
+    {
+      "symbol": "WIPRO.NS",
+      "momentum": 0,
+      "volatility": 1,
+      "score": 0
+    },
+    {
+      "symbol": "NTPC.NS",
+      "momentum": 0,
+      "volatility": 1,
+      "score": 0
+    },
+    {
+      "symbol": "POWERGRID.NS",
+      "momentum": 0,
+      "volatility": 1,
+      "score": 0
+    }
+  ]
+}

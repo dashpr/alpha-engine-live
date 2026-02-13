@@ -1,16 +1,94 @@
-[
-  {
-    "symbol": "RELIANCE.NS",
-    "qty": 0,
-    "avg_cost": 0,
-    "allocated_capital": 990.1,
-    "ts": "2026-02-13T05:19:32.342975+00:00"
-  },
-  {
-    "symbol": "HDFCBANK.NS",
-    "qty": 0,
-    "avg_cost": 0,
-    "allocated_capital": 990.1,
-    "ts": "2026-02-13T05:19:32.342982+00:00"
-  }
-]
+{
+  "positions": [
+    {
+      "symbol": "RELIANCE.NS",
+      "allocated_capital": 13333.33,
+      "qty": 0,
+      "avg_cost": 0
+    },
+    {
+      "symbol": "HDFCBANK.NS",
+      "allocated_capital": 13333.33,
+      "qty": 0,
+      "avg_cost": 0
+    },
+    {
+      "symbol": "ICICIBANK.NS",
+      "allocated_capital": 13333.33,
+      "qty": 0,
+      "avg_cost": 0
+    },
+    {
+      "symbol": "INFY.NS",
+      "allocated_capital": 13333.33,
+      "qty": 0,
+      "avg_cost": 0
+    },
+    {
+      "symbol": "TCS.NS",
+      "allocated_capital": 13333.33,
+      "qty": 0,
+      "avg_cost": 0
+    },
+    {
+      "symbol": "ITC.NS",
+      "allocated_capital": 13333.33,
+      "qty": 0,
+      "avg_cost": 0
+    },
+    {
+      "symbol": "LT.NS",
+      "allocated_capital": 13333.33,
+      "qty": 0,
+      "avg_cost": 0
+    },
+    {
+      "symbol": "SBIN.NS",
+      "allocated_capital": 13333.33,
+      "qty": 0,
+      "avg_cost": 0
+    },
+    {
+      "symbol": "BHARTIARTL.NS",
+      "allocated_capital": 13333.33,
+      "qty": 0,
+      "avg_cost": 0
+    },
+    {
+      "symbol": "ASIANPAINT.NS",
+      "allocated_capital": 13333.33,
+      "qty": 0,
+      "avg_cost": 0
+    },
+    {
+      "symbol": "AXISBANK.NS",
+      "allocated_capital": 13333.33,
+      "qty": 0,
+      "avg_cost": 0
+    },
+    {
+      "symbol": "KOTAKBANK.NS",
+      "allocated_capital": 13333.33,
+      "qty": 0,
+      "avg_cost": 0
+    },
+    {
+      "symbol": "MARUTI.NS",
+      "allocated_capital": 13333.33,
+      "qty": 0,
+      "avg_cost": 0
+    },
+    {
+      "symbol": "HCLTECH.NS",
+      "allocated_capital": 13333.33,
+      "qty": 0,
+      "avg_cost": 0
+    },
+    {
+      "symbol": "SUNPHARMA.NS",
+      "allocated_capital": 13333.33,
+      "qty": 0,
+      "avg_cost": 0
+    }
+  ]
+}

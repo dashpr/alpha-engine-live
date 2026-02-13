@@ -1,6 +1,8 @@
 {
-  "nav": 198019.8,
-  "volatility_placeholder": 0,
-  "sharpe_placeholder": 0,
-  "drawdown_placeholder": 0
+  "cagr": 0,
+  "max_dd": 0,
+  "volatility": 0,
+  "sharpe": 0,
+  "regime": "WARMUP",
+  "timestamp": "2026-02-13T06:23:59.208970"
 }
