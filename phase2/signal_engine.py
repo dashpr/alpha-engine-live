@@ -1,26 +1,11 @@
 """
-PHASE-2 INSTITUTIONAL SIGNAL ENGINE
------------------------------------
-
-Responsibilities:
-• Download price data for NIFTY-200 universe
-• Compute multi-horizon momentum
-• Compute scalar-safe volatility
-• Rank securities deterministically
-• Output clean signal dataframe for portfolio constructor
-
-Design Principles:
-• CI-safe pandas handling
-• Deterministic outputs
-• Zero-crash guarantees
-• Institutional logging clarity
+PHASE-2 INSTITUTIONAL SIGNAL ENGINE (FINAL CI-STABLE)
 """
 
 import os
 import pandas as pd
 import numpy as np
 import yfinance as yf
-from datetime import datetime
 
 # ================= CONFIG =================
 
@@ -35,18 +20,13 @@ MIN_PRICE_HISTORY = 150
 TOP_N_SIGNALS = 30
 
 
-# ================= UTILITIES =================
+# ================= LOGGING =================
 
 def log(msg: str):
-    """Simple deterministic logger."""
     print(f"[SIGNAL_ENGINE] {msg}")
 
 
 def safe_float(value) -> float:
-    """
-    Convert pandas/numpy/scalar safely to float.
-    Never throws.
-    """
     try:
         if hasattr(value, "item"):
             return float(value.item())
@@ -55,29 +35,59 @@ def safe_float(value) -> float:
         return 0.0
 
 
-# ================= DATA LOADING =================
+# ================= UNIVERSE LOADING =================
+
+def detect_symbol_column(df: pd.DataFrame) -> str:
+    """
+    Detect symbol column in a schema-agnostic way.
+    """
+    normalized = {c.strip().lower(): c for c in df.columns}
+
+    for key in ["symbol", "symbols", "ticker", "tickers"]:
+        if key in normalized:
+            return normalized[key]
+
+    # fallback → first column
+    return df.columns[0]
+
 
 def load_universe() -> list:
-    """Load NIFTY-200 symbols."""
+    """
+    Robust universe loader:
+    • Case-insensitive
+    • Whitespace safe
+    • Works with any CSV schema
+    """
     if not os.path.exists(UNIVERSE_FILE):
-        raise FileNotFoundError("nifty200.csv not found in /data")
+        raise FileNotFoundError("nifty200.csv missing in /data")
 
     df = pd.read_csv(UNIVERSE_FILE)
 
-    if "Symbol" not in df.columns:
-        raise ValueError("Universe file must contain 'Symbol' column")
+    if df.empty:
+        raise ValueError("Universe CSV is empty")
 
-    symbols = sorted(df["Symbol"].dropna().unique().tolist())
+    symbol_col = detect_symbol_column(df)
+
+    symbols = (
+        df[symbol_col]
+        .astype(str)
+        .str.strip()
+        .str.upper()
+        .dropna()
+        .unique()
+        .tolist()
+    )
+
+    if not symbols:
+        raise ValueError("No valid symbols found in universe")
 
     log(f"Loaded universe: {len(symbols)} symbols")
-    return symbols
+    return sorted(symbols)
 
 
-def download_prices(symbol: str) -> pd.Series | None:
-    """
-    Download adjusted close prices from Yahoo Finance.
-    Returns None if invalid or insufficient data.
-    """
+# ================= DATA DOWNLOAD =================
+
+def download_prices(symbol: str):
     try:
         df = yf.download(
             symbol,
@@ -102,13 +112,11 @@ def download_prices(symbol: str) -> pd.Series | None:
         return None
 
 
-# ================= SIGNAL CALCULATIONS =================
+# ================= SIGNAL METRICS =================
 
 def momentum(close: pd.Series, window: int) -> float:
-    """Compute scalar-safe momentum."""
     if close is None or len(close) < window:
         return 0.0
-
     try:
         return safe_float(close.iloc[-1] / close.iloc[-window] - 1)
     except Exception:
@@ -116,62 +124,45 @@ def momentum(close: pd.Series, window: int) -> float:
 
 
 def volatility(close: pd.Series) -> float:
-    """
-    Scalar-safe rolling volatility.
-    GUARANTEED never to crash CI.
-    """
     if close is None or len(close) < VOL_WINDOW:
         return 0.0
 
     try:
         vol_series = close.pct_change().rolling(VOL_WINDOW).std()
-
         if vol_series is None or vol_series.empty:
             return 0.0
-
-        last_val = vol_series.iloc[-1]
-        return safe_float(last_val)
-
+        return safe_float(vol_series.iloc[-1])
     except Exception:
         return 0.0
 
 
-def compute_signal_row(symbol: str, close: pd.Series) -> dict | None:
-    """Build signal metrics for one stock."""
+def compute_signal(symbol: str, close: pd.Series):
     if close is None:
         return None
 
-    mom_scores = [momentum(close, w) for w in MOM_WINDOWS]
+    moms = [momentum(close, w) for w in MOM_WINDOWS]
     vol = volatility(close)
 
-    # Reject zero-vol assets (bad data)
     if vol <= 0:
         return None
 
-    # Institutional composite momentum score
-    composite_mom = np.mean(mom_scores)
-
-    # Risk-adjusted signal
-    signal_strength = composite_mom / vol if vol > 0 else 0.0
+    composite = float(np.mean(moms))
+    strength = composite / vol if vol > 0 else 0.0
 
     return {
         "symbol": symbol,
-        "momentum_1m": mom_scores[0],
-        "momentum_3m": mom_scores[1],
-        "momentum_6m": mom_scores[2],
+        "momentum_1m": moms[0],
+        "momentum_3m": moms[1],
+        "momentum_6m": moms[2],
         "volatility": vol,
-        "composite_momentum": composite_mom,
-        "signal_strength": signal_strength,
+        "composite_momentum": composite,
+        "signal_strength": strength,
     }
 
 
-# ================= MAIN ENGINE =================
+# ================= MAIN BUILDER =================
 
 def build_signals() -> pd.DataFrame:
-    """
-    Institutional deterministic signal builder.
-    Produces ranked dataframe ready for portfolio construction.
-    """
     log("Starting signal build...")
 
     symbols = load_universe()
@@ -180,10 +171,9 @@ def build_signals() -> pd.DataFrame:
     valid = 0
     rejected = 0
 
-    for symbol in symbols:
-        close = download_prices(symbol)
-
-        row = compute_signal_row(symbol, close)
+    for s in symbols:
+        close = download_prices(s)
+        row = compute_signal(s, close)
 
         if row:
             rows.append(row)
@@ -199,28 +189,24 @@ def build_signals() -> pd.DataFrame:
 
     df = pd.DataFrame(rows)
 
-    # Deterministic ranking
     df = df.sort_values("signal_strength", ascending=False).reset_index(drop=True)
-
-    # Keep only top signals
     df = df.head(TOP_N_SIGNALS)
 
     log(f"Top signals selected: {len(df)}")
-
     return df
 
 
-# ================= CLI ENTRY =================
+# ================= CLI =================
 
 if __name__ == "__main__":
-    log("=== PHASE-2 SIGNAL ENGINE RUN ===")
+    log("=== SIGNAL ENGINE RUN ===")
 
     signals = build_signals()
 
     os.makedirs(DATA_PATH, exist_ok=True)
-
     out_file = os.path.join(DATA_PATH, "signals.csv")
+
     signals.to_csv(out_file, index=False)
 
     log(f"Signals saved → {out_file}")
-    log("=== SIGNAL ENGINE COMPLETE ===")
+    log("=== COMPLETE ===")
