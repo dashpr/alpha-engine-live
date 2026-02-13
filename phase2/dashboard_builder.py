@@ -1,9 +1,14 @@
 """
-PHASE-2 DASHBOARD BUILDER (GITHUB PAGES SAFE)
----------------------------------------------
+PHASE-2 DASHBOARD BUILDER (FINAL CONTRACT)
+------------------------------------------
 
-Creates dashboard/data.json directly inside repo
-so GitHub Pages can serve it without extra git logic.
+Reads engine outputs and writes canonical dashboard JSON to:
+
+    dashboard/data.json   ← GitHub Pages source
+
+Also keeps optional archival copy in:
+
+    output/dashboard_data.json
 """
 
 import os
@@ -13,8 +18,11 @@ from datetime import datetime
 
 
 DATA_PATH = "data"
+OUTPUT_PATH = "output"
 DASHBOARD_DIR = "dashboard"
-OUTPUT_JSON = os.path.join(DASHBOARD_DIR, "data.json")
+
+CANONICAL_JSON = os.path.join(DASHBOARD_DIR, "data.json")
+ARCHIVE_JSON = os.path.join(OUTPUT_PATH, "dashboard_data.json")
 
 
 def log(msg: str):
@@ -44,27 +52,32 @@ def build_payload() -> dict:
         "nav": nav.to_dict(orient="records"),
         "risk": risk.to_dict(orient="records"),
         "commentary": commentary.to_dict(orient="records"),
-        "watchlist_past": [],     # placeholder safe default
-        "rebalance": {
-            "last": "NA",
-            "next_days": "NA"
-        }
+        "watchlist_past": [],
+        "rebalance": {"last": "NA", "next_days": "NA"},
     }
 
     return payload
 
 
 def save_json(payload: dict):
+    # Ensure directories exist
     os.makedirs(DASHBOARD_DIR, exist_ok=True)
+    os.makedirs(OUTPUT_PATH, exist_ok=True)
 
-    with open(OUTPUT_JSON, "w") as f:
+    # 1️⃣ Canonical JSON for dashboard
+    with open(CANONICAL_JSON, "w") as f:
         json.dump(payload, f, indent=2)
 
-    log(f"Saved → {OUTPUT_JSON}")
+    # 2️⃣ Archive JSON (existing behavior preserved)
+    with open(ARCHIVE_JSON, "w") as f:
+        json.dump(payload, f, indent=2)
+
+    log(f"Saved canonical → {CANONICAL_JSON}")
+    log(f"Saved archive   → {ARCHIVE_JSON}")
 
 
 def build_dashboard():
-    log("Building dashboard JSON...")
+    log("Building dashboard payload...")
     payload = build_payload()
     save_json(payload)
     log("Dashboard build complete.")
