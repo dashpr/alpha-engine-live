@@ -8,62 +8,30 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-body{
-  margin:0;
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial;
-  background:#0b0f14;
-  color:#e6edf3;
-}
-header{
-  padding:16px 24px;
-  background:#111821;
-  border-bottom:1px solid #1f2a36;
-}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial;background:#0b0f14;color:#e6edf3;}
+header{padding:16px 24px;background:#111821;border-bottom:1px solid #1f2a36;}
 h1{margin:0;font-size:20px;}
-
 .container{padding:20px;max-width:1200px;margin:auto;}
-
-.section{
-  background:#111821;
-  margin-bottom:20px;
-  padding:16px;
-  border-radius:10px;
-  border:1px solid #1f2a36;
-}
-
+.section{background:#111821;margin-bottom:20px;padding:16px;border-radius:10px;border:1px solid #1f2a36;}
 .grid{display:grid;gap:16px;}
 .grid-2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr));}
-
 table{width:100%;border-collapse:collapse;font-size:13px;}
 th,td{padding:8px;border-bottom:1px solid #1f2a36;text-align:left;}
-
 footer{text-align:center;font-size:12px;padding:20px;opacity:.7;}
-
 .chart-box{height:260px;}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:12px;}
+.kpi div{background:#0f1620;padding:10px;border-radius:8px;border:1px solid #1f2a36;font-size:12px;}
 
-.kpi{
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
-  gap:12px;
-  margin-bottom:12px;
-}
-.kpi div{
-  background:#0f1620;
-  padding:10px;
-  border-radius:8px;
-  border:1px solid #1f2a36;
-  font-size:12px;
-}
+.buy{color:#00e676;font-weight:bold;}
+.sell{color:#ff5252;font-weight:bold;}
+.hold{color:#4fc3f7;font-weight:bold;}
+.wait{color:#ffd740;font-weight:bold;}
+
 .star{cursor:pointer;color:#9aa7b3;}
 .star:hover{color:#ffd700;}
-.modal{
-  position:fixed;inset:0;background:#0008;
-  display:none;align-items:center;justify-content:center;
-}
-.modal-box{
-  background:#111821;padding:20px;border-radius:10px;
-  max-width:400px;border:1px solid #1f2a36;
-}
+
+.modal{position:fixed;inset:0;background:#0008;display:none;align-items:center;justify-content:center;}
+.modal-box{background:#111821;padding:20px;border-radius:10px;max-width:420px;border:1px solid #1f2a36;}
 </style>
 </head>
 
@@ -73,18 +41,15 @@ footer{text-align:center;font-size:12px;padding:20px;opacity:.7;}
 
 <div class="container">
 
-<!-- KPI STRIP -->
+<!-- KPI + NAV -->
 <div class="section">
 <div class="kpi" id="kpiStrip"></div>
-
-<div class="chart-box">
-<canvas id="navChart"></canvas>
-</div>
+<div class="chart-box"><canvas id="navChart"></canvas></div>
 </div>
 
 <!-- PORTFOLIO -->
 <div class="section">
-<h2>Portfolio Snapshot (Live Pricing)</h2>
+<h2>Portfolio Snapshot (Dynamic Positions)</h2>
 <table id="portfolioTable"></table>
 </div>
 
@@ -129,18 +94,27 @@ footer{text-align:center;font-size:12px;padding:20px;opacity:.7;}
 <div class="modal" id="modal">
 <div class="modal-box">
 <div id="modalText"></div>
-<br/>
-<button onclick="closeModal()">Close</button>
+<br><button onclick="modal.style.display='none'">Close</button>
 </div>
 </div>
 
 <script>
-const PATH="/alpha-engine-live/output/dashboard_data.json";
-let chart=null;
+const BASE="/alpha-engine-live/output/";
 
-async function load(){
-  const r=await fetch(PATH,{cache:"no-store"});
-  return await r.json();
+async function loadAll(){
+  const files=[
+    "dashboard_data.json",
+    "prices_live.json",
+    "portfolio_positions.json",
+    "watchlist_history.csv"
+  ];
+
+  const res=await Promise.all(files.map(f=>fetch(BASE+f).then(r=>r.ok?r.json?.():null).catch(()=>null)));
+  return {
+    dash:res[0]||{},
+    prices:res[1]||{},
+    positions:res[2]||[],
+  };
 }
 
 function renderKPI(d){
@@ -150,7 +124,7 @@ function renderKPI(d){
 
   const kpis=[
     ["Current NAV",end],
-    ["Cumulative %",ret],
+    ["Return %",ret],
     ["Max DD %",d.max_drawdown_pct],
     ["Volatility %",d.volatility_pct],
     ["Sharpe",d.sharpe],
@@ -160,85 +134,70 @@ function renderKPI(d){
   kpiStrip.innerHTML=kpis.map(k=>`<div><b>${k[0]}</b><br>${k[1]??""}</div>`).join("");
 }
 
+let chart;
 function renderChart(d){
   if(chart)chart.destroy();
-
   chart=new Chart(navChart,{
     type:"line",
     data:{
       labels:d.equity_dates,
       datasets:[
-        {label:"Model Equity",data:d.equity_values,tension:.3},
-        {label:"Nifty 50",data:d.nifty_values,tension:.3}
+        {label:"Model Equity",data:d.equity_values},
+        {label:"Nifty 50",data:d.nifty_values}
       ]
     },
     options:{responsive:true,maintainAspectRatio:false}
   });
 }
 
-function renderPortfolio(rows){
-  if(!rows?.length){portfolioTable.innerHTML="<tr><td>No data</td></tr>";return;}
+function renderPortfolio(positions, prices){
+  if(!positions?.length){portfolioTable.innerHTML="<tr><td>No positions</td></tr>";return;}
 
-  const total=rows.reduce((s,r)=>s+(r.position_value||0),0);
+  const total=positions.reduce((s,p)=>s+(p.qty*(prices[p.ticker]||0)),0);
 
-  let h="<tr><th>Ticker</th><th>Live</th><th>Daily%</th><th>Value</th><th>Weight%</th><th>P&L%</th></tr>";
+  let h="<tr><th>Ticker</th><th>Qty</th><th>Live</th><th>Value</th><th>Weight%</th></tr>";
 
-  rows.forEach(r=>{
-    const w=total?((r.position_value||0)/total*100).toFixed(2):"";
+  positions.forEach(p=>{
+    const price=prices[p.ticker]||0;
+    const val=p.qty*price;
+    const w=total?((val/total)*100).toFixed(2):"";
+
     h+=`<tr>
-      <td>${r.ticker}</td>
-      <td>${r.live_price??""}</td>
-      <td>${r.daily_change_pct??""}</td>
-      <td>${r.position_value??""}</td>
+      <td>${p.ticker}</td>
+      <td>${p.qty}</td>
+      <td>${price}</td>
+      <td>${val.toFixed(0)}</td>
       <td>${w}</td>
-      <td>${r.pnl_pct??""}</td>
     </tr>`;
   });
 
   portfolioTable.innerHTML=h;
 }
 
-function renderSignals(rows){
-  if(!rows?.length){signalsTable.innerHTML="<tr><td>No data</td></tr>";return;}
+function renderSignals(trades, prices){
+  if(!trades?.length){signalsTable.innerHTML="<tr><td>No signals</td></tr>";return;}
 
-  let h="<tr><th>Ticker</th><th>Live</th><th>% Since Entry</th><th>Signal</th><th>*</th></tr>";
+  let h="<tr><th>Ticker</th><th>Live</th><th>Signal</th><th>*</th></tr>";
 
-  rows.forEach(r=>{
+  trades.forEach(t=>{
+    const cls=t.signal.toLowerCase();
     h+=`<tr>
-      <td>${r.ticker}</td>
-      <td>${r.live_price??""}</td>
-      <td>${r.change_since_entry??""}</td>
-      <td>${r.signal}</td>
-      <td class="star" onclick="openModal('${r.reason||"No explanation"}')">★</td>
+      <td>${t.ticker}</td>
+      <td>${prices[t.ticker]||""}</td>
+      <td class="${cls}">${t.signal}</td>
+      <td class="star" onclick="showReason('${t.reason||"No explanation available"}')">★</td>
     </tr>`;
   });
 
   signalsTable.innerHTML=h;
 }
 
-function renderPast(rows){
-  if(!rows?.length){pastTable.innerHTML="<tr><td>No data</td></tr>";return;}
-
-  let h="<tr><th>Symbol</th><th>Entry</th><th>Exit</th><th>Reason</th></tr>";
-
-  rows.forEach(r=>{
-    h+=`<tr>
-      <td>${r.symbol}</td>
-      <td>${r.included_on}</td>
-      <td>${r.exited_on??""}</td>
-      <td>${r.reason}</td>
-    </tr>`;
-  });
-
-  pastTable.innerHTML=h;
-}
-
 function renderRisk(d){
   const rows=[
-    ["Regime",d.regime,"Model risk posture"],
-    ["Volatility %",d.volatility_pct,"Realized volatility"],
+    ["Regime",d.regime,"Model risk state"],
+    ["Volatility %",d.volatility_pct,"Realized vol"],
     ["Sharpe",d.sharpe,"Risk-adjusted return"],
-    ["Max Drawdown %",d.max_drawdown_pct,"Peak-to-trough fall"]
+    ["Max Drawdown %",d.max_drawdown_pct,"Peak loss"]
   ];
 
   riskTable.innerHTML="<tr><th>Metric</th><th>Value</th><th>Explainability</th></tr>"+
@@ -247,33 +206,26 @@ function renderRisk(d){
 
 function renderRebalance(d){
   const next=new Date(d.next_rebalance);
-  const today=new Date();
-  const days=Math.ceil((next-today)/86400000);
-
-  rebalanceText.innerText=
-    `Last: ${d.last_rebalance} | Next: ${d.next_rebalance} | Countdown: ${days} days`;
+  const days=Math.ceil((next-new Date())/86400000);
+  rebalanceText.innerText=`Last: ${d.last_rebalance} | Next: ${d.next_rebalance} | Countdown: ${days} days`;
 }
 
-function renderCIO(d){
-  cioText.innerText=d.cio_commentary||
-  "Macro breadth improving. Leadership stable. Risk controlled.";
+function showReason(t){
+  modal.style.display="flex";
+  modalText.innerText=t;
 }
-
-function openModal(t){modal.style.display="flex";modalText.innerText=t;}
-function closeModal(){modal.style.display="none";}
 
 async function init(){
-  const d=await load();
+  const {dash,prices,positions}=await loadAll();
 
-  renderKPI(d);
-  renderChart(d);
-  renderPortfolio(d.holdings);
-  renderSignals(d.trades);
-  renderPast(d.watchlist_history);
-  renderRisk(d);
-  renderRebalance(d);
-  renderCIO(d);
+  renderKPI(dash);
+  renderChart(dash);
+  renderPortfolio(positions,prices);
+  renderSignals(dash.trades,prices);
+  renderRisk(dash);
+  renderRebalance(dash);
 
+  cioText.innerText=dash.cio_commentary||"AI CIO narrative unavailable.";
   timestamp.innerText="Last Updated: "+new Date().toLocaleString();
 }
 
