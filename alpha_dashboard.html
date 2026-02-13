@@ -3,12 +3,49 @@
 <head>
 <meta charset="UTF-8" />
 <title>AI Alpha Engine — Investor Dashboard</title>
+
 <style>
-body{background:#071a26;color:#e6f1f7;font-family:Arial;margin:0;padding:20px}
-.card{background:#0f2a38;border-radius:16px;padding:20px;margin-bottom:20px}
-h1{margin-top:0}
-table{width:100%;border-collapse:collapse}
-td,th{padding:8px;border-bottom:1px solid #1f3b4a}
+body{
+  background:#071a26;
+  color:#e6f1f7;
+  font-family:Arial;
+  margin:0;
+  padding:24px;
+}
+
+h1{margin:0 0 20px 0;}
+
+.grid{
+  display:grid;
+  grid-template-columns:2fr 1fr;
+  gap:20px;
+}
+
+.card{
+  background:#0f2a38;
+  border-radius:18px;
+  padding:20px;
+}
+
+.section{
+  margin-top:20px;
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+}
+
+th,td{
+  padding:10px;
+  border-bottom:1px solid #1f3b4a;
+  text-align:left;
+}
+
+.small{
+  opacity:.7;
+  font-size:13px;
+}
 </style>
 </head>
 
@@ -16,70 +53,128 @@ td,th{padding:8px;border-bottom:1px solid #1f3b4a}
 
 <h1>AI Alpha Engine — Investor Dashboard</h1>
 
-<div class="card"><h2 id="nav">Loading NAV...</h2></div>
+<!-- NAV + AUM + Regime -->
+<div class="grid">
 
-<div class="card">
-<h3>Portfolio Snapshot</h3>
-<table id="snapshot"></table>
+  <div class="card">
+    <div class="small">NAV (since inception)</div>
+    <h2 id="navValue">Loading…</h2>
+  </div>
+
+  <div>
+    <div class="card section">
+      <div class="small">AUM</div>
+      <h3 id="aumValue">—</h3>
+    </div>
+
+    <div class="card section">
+      <div class="small">Regime</div>
+      <h3 id="regimeText">—</h3>
+    </div>
+  </div>
+
 </div>
 
-<div class="card">
-<h3>Portfolio Positions</h3>
-<table id="positions"></table>
+<!-- Portfolio Snapshot / Sector / Risk -->
+<div class="grid section">
+
+  <div class="card">
+    <h3>Portfolio Snapshot</h3>
+    <table id="snapshotTable"></table>
+  </div>
+
+  <div class="card">
+    <h3>Sector Allocation</h3>
+    <pre id="sectorBox">Loading…</pre>
+  </div>
+
+  <div class="card">
+    <h3>Risk Metrics</h3>
+    <pre id="riskBox">Loading…</pre>
+  </div>
+
 </div>
 
-<div class="card">
-<h3>Sector Allocation</h3>
-<pre id="sectors">Loading...</pre>
+<!-- Positions -->
+<div class="card section">
+  <h3>Portfolio Positions</h3>
+  <table id="positionsTable"></table>
 </div>
 
-<div class="card">
-<h3>Risk Metrics</h3>
-<pre id="risk">Loading...</pre>
+<!-- Capital Journey -->
+<div class="card section">
+  <h3>Capital Journey</h3>
+  <pre id="deployBox">Loading…</pre>
 </div>
 
-<div class="card">
-<h3>AI Commentary</h3>
-<p id="ai">Loading...</p>
+<!-- AI Commentary -->
+<div class="card section">
+  <h3>AI Portfolio Intelligence</h3>
+  <p id="aiText">Loading…</p>
+</div>
+
+<!-- Event Highlights -->
+<div class="card section">
+  <h3>Event Highlights</h3>
+  <pre id="eventBox">Loading…</pre>
 </div>
 
 <script>
-async function j(p){
-  const r=await fetch(p+"?t="+Date.now());
+async function j(path){
+  const r = await fetch(path + "?t=" + Date.now());
+  if(!r.ok) throw new Error(path + " missing");
   return r.json();
 }
 
 async function init(){
 
-  const [nav,pos,hold,sec,risk,ai] = await Promise.all([
+  const [nav,pos,hold,sec,risk,dep,gov,ai,evt] = await Promise.all([
     j("phase2/nav.json"),
     j("phase2/positions.json"),
     j("phase2/holdings.json"),
     j("phase2/sectors.json"),
     j("phase2/risk.json"),
-    j("phase2/ai.json")
+    j("phase2/deployment.json"),
+    j("phase2/governance.json"),
+    j("phase2/ai.json"),
+    j("phase2/events.json")
   ]);
 
-  document.getElementById("nav").innerText =
-    `NAV ₹${nav.value.toLocaleString()} (${nav.return_pct}%)`;
+  // NAV / AUM / Regime
+  document.getElementById("navValue").innerText =
+    `₹${nav.value.toLocaleString()} (${nav.return_pct}%)`;
 
-  document.getElementById("ai").innerText = ai.text;
+  document.getElementById("aumValue").innerText =
+    `₹${nav.capital.toLocaleString()}`;
 
-  // snapshot
-  document.getElementById("snapshot").innerHTML =
+  document.getElementById("regimeText").innerText = gov.regime;
+
+  // Snapshot
+  document.getElementById("snapshotTable").innerHTML =
     "<tr><th>Symbol</th><th>Weight</th></tr>" +
-    hold.map(h=>`<tr><td>${h.symbol}</td><td>${h.weight}%</td></tr>`).join("");
+    hold.map(h => `<tr><td>${h.symbol}</td><td>${h.weight}%</td></tr>`).join("");
 
-  // positions
-  document.getElementById("positions").innerHTML =
+  // Positions
+  document.getElementById("positionsTable").innerHTML =
     "<tr><th>Symbol</th><th>Qty</th><th>Avg</th><th>Price</th><th>MTM</th></tr>" +
-    pos.map(p=>`<tr><td>${p.symbol}</td><td>${p.qty}</td><td>${p.avg_cost}</td><td>${p.price}</td><td>${p.mtm}</td></tr>`).join("");
+    pos.map(p =>
+      `<tr>
+        <td>${p.symbol}</td>
+        <td>${p.qty}</td>
+        <td>${p.avg_cost}</td>
+        <td>${p.price}</td>
+        <td>${p.mtm}</td>
+      </tr>`
+    ).join("");
 
-  document.getElementById("sectors").innerText =
-    JSON.stringify(sec,null,2);
+  // Sector / Risk / Deployment / Events
+  document.getElementById("sectorBox").innerText = JSON.stringify(sec,null,2);
+  document.getElementById("riskBox").innerText = JSON.stringify(risk,null,2);
+  document.getElementById("deployBox").innerText = JSON.stringify(dep,null,2);
+  document.getElementById("eventBox").innerText = JSON.stringify(evt,null,2);
 
-  document.getElementById("risk").innerText =
-    JSON.stringify(risk,null,2);
+  // AI
+  document.getElementById("aiText").innerText = ai.text;
 }
 
 init();
