@@ -1,45 +1,9 @@
-name: Phase-3 AI PMS Pipeline
-
-on:
-  schedule:
-    # Daily run after Indian market close (6:30 PM IST = 13:00 UTC)
-    - cron: "0 13 * * 1-5"
-
-    # Weekly rebalance run (Saturday 8:00 AM IST = 02:30 UTC)
-    - cron: "30 2 * * 6"
-
-  workflow_dispatch:
-
-jobs:
-  phase3:
-    runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: ai-pms   # ⭐ KEY FIX — run inside subfolder
-
-    steps:
       # -----------------------------------
-      # Checkout repository
+      # Phase-2 Data Spine (required input)
       # -----------------------------------
-      - name: Checkout code
-        uses: actions/checkout@v4
 
-      # -----------------------------------
-      # Setup Python
-      # -----------------------------------
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      # -----------------------------------
-      # Install dependencies
-      # -----------------------------------
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+      - name: Run Phase-2 Live Price Engine
+        run: python run_live_prices.py
 
       # -----------------------------------
       # Phase-3 Engines
@@ -61,18 +25,3 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python run_cio_report.py
-
-      # -----------------------------------
-      # Tests
-      # -----------------------------------
-      - name: Run test suite
-        run: pytest
-
-      # -----------------------------------
-      # Upload outputs
-      # -----------------------------------
-      - name: Upload Phase-3 outputs
-        uses: actions/upload-artifact@v4
-        with:
-          name: ai-pms-phase3-outputs
-          path: ai-pms/data/output/
