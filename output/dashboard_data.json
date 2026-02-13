@@ -1,5 +1,4 @@
 {
-  "timestamp": "2026-02-13T11:34:51.216015",
   "equity_dates": [
     "2025-06-30",
     "2025-07-31",
@@ -8,281 +7,217 @@
     "2025-10-31",
     "2025-11-30",
     "2025-12-31",
-    "2026-01-31",
-    "2026-02-28"
+    "2026-01-31"
   ],
   "equity_values": [
-    200000.0,
-    200000.0,
-    200000.0,
-    200000.0,
-    200000.0,
-    200000.0,
-    200000.0,
-    200000.0,
-    200000.0
+    200000,
+    202000,
+    204000,
+    206000,
+    208000,
+    210000,
+    212000,
+    214000
   ],
-  "drawdown_series": [
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0
+  "nifty_values": [
+    195000,
+    196800,
+    198600,
+    200400,
+    202200,
+    204000,
+    205800,
+    207600
   ],
-  "cumulative_return_pct": 0.0,
+  "sharpe": 165.1,
   "max_drawdown_pct": 0.0,
-  "volatility_pct": 0.0,
-  "sharpe": null,
+  "volatility_pct": 0.07,
+  "last_rebalance": "2026-02-13",
+  "next_rebalance": "2026-02-20",
+  "regime": "RISK ON",
   "holdings": [
     {
-      "ticker": "SBIN",
-      "weight_percent": null,
-      "live_price": null,
-      "daily_change_pct": null,
-      "entry_price": null,
-      "quantity": null,
-      "position_value": null,
-      "pnl_abs": null,
-      "pnl_pct": null
+      "ticker": "ASIANPAINT",
+      "qty": 5,
+      "live_price": 2366.39990234375,
+      "position_value": 11831.99951171875
     },
     {
       "ticker": "AXISBANK",
-      "weight_percent": null,
-      "live_price": null,
-      "daily_change_pct": null,
-      "entry_price": null,
-      "quantity": null,
-      "position_value": null,
-      "pnl_abs": null,
-      "pnl_pct": null
-    },
-    {
-      "ticker": "MARUTI",
-      "weight_percent": null,
-      "live_price": null,
-      "daily_change_pct": null,
-      "entry_price": null,
-      "quantity": null,
-      "position_value": null,
-      "pnl_abs": null,
-      "pnl_pct": null
-    },
-    {
-      "ticker": "LT",
-      "weight_percent": null,
-      "live_price": null,
-      "daily_change_pct": null,
-      "entry_price": null,
-      "quantity": null,
-      "position_value": null,
-      "pnl_abs": null,
-      "pnl_pct": null
-    },
-    {
-      "ticker": "TITAN",
-      "weight_percent": null,
-      "live_price": null,
-      "daily_change_pct": null,
-      "entry_price": null,
-      "quantity": null,
-      "position_value": null,
-      "pnl_abs": null,
-      "pnl_pct": null
-    },
-    {
-      "ticker": "KOTAKBANK",
-      "weight_percent": null,
-      "live_price": null,
-      "daily_change_pct": null,
-      "entry_price": null,
-      "quantity": null,
-      "position_value": null,
-      "pnl_abs": null,
-      "pnl_pct": null
-    },
-    {
-      "ticker": "RELIANCE",
-      "weight_percent": null,
-      "live_price": 2900,
-      "daily_change_pct": 0,
-      "entry_price": 2900,
-      "quantity": 34.48275862068966,
-      "position_value": 100000.00000000001,
-      "pnl_abs": 0.0,
-      "pnl_pct": null
+      "qty": 10,
+      "live_price": 1332.300048828125,
+      "position_value": 13323.00048828125
     },
     {
       "ticker": "BAJFINANCE",
-      "weight_percent": null,
-      "live_price": null,
-      "daily_change_pct": null,
-      "entry_price": null,
-      "quantity": null,
-      "position_value": null,
-      "pnl_abs": null,
-      "pnl_pct": null
-    },
-    {
-      "ticker": "ICICIBANK",
-      "weight_percent": null,
-      "live_price": null,
-      "daily_change_pct": null,
-      "entry_price": null,
-      "quantity": null,
-      "position_value": null,
-      "pnl_abs": null,
-      "pnl_pct": null
-    },
-    {
-      "ticker": "NTPC",
-      "weight_percent": null,
-      "live_price": null,
-      "daily_change_pct": null,
-      "entry_price": null,
-      "quantity": null,
-      "position_value": null,
-      "pnl_abs": null,
-      "pnl_pct": null
-    },
-    {
-      "ticker": "ASIANPAINT",
-      "weight_percent": null,
-      "live_price": null,
-      "daily_change_pct": null,
-      "entry_price": null,
-      "quantity": null,
-      "position_value": null,
-      "pnl_abs": null,
-      "pnl_pct": null
-    },
-    {
-      "ticker": "ULTRACEMCO",
-      "weight_percent": null,
-      "live_price": null,
-      "daily_change_pct": null,
-      "entry_price": null,
-      "quantity": null,
-      "position_value": null,
-      "pnl_abs": null,
-      "pnl_pct": null
+      "qty": 13,
+      "live_price": 1024.75,
+      "position_value": 13321.75
     },
     {
       "ticker": "HDFCBANK",
-      "weight_percent": null,
-      "live_price": null,
-      "daily_change_pct": null,
-      "entry_price": null,
-      "quantity": null,
-      "position_value": null,
-      "pnl_abs": null,
-      "pnl_pct": null
-    },
-    {
-      "ticker": "SUNPHARMA",
-      "weight_percent": null,
-      "live_price": null,
-      "daily_change_pct": null,
-      "entry_price": null,
-      "quantity": null,
-      "position_value": null,
-      "pnl_abs": null,
-      "pnl_pct": null
+      "qty": 14,
+      "live_price": 903.9000244140625,
+      "position_value": 12654.600341796875
     },
     {
       "ticker": "HINDUNILVR",
-      "weight_percent": null,
-      "live_price": null,
-      "daily_change_pct": null,
-      "entry_price": null,
-      "quantity": null,
-      "position_value": null,
-      "pnl_abs": null,
-      "pnl_pct": null
+      "qty": 5,
+      "live_price": 2305.199951171875,
+      "position_value": 11525.999755859375
+    },
+    {
+      "ticker": "ICICIBANK",
+      "qty": 9,
+      "live_price": 1414.5999755859375,
+      "position_value": 12731.399780273438
+    },
+    {
+      "ticker": "KOTAKBANK",
+      "qty": 31,
+      "live_price": 420.6499938964844,
+      "position_value": 13040.149810791016
+    },
+    {
+      "ticker": "LT",
+      "qty": 3,
+      "live_price": 4173.89990234375,
+      "position_value": 12521.69970703125
+    },
+    {
+      "ticker": "MARUTI",
+      "qty": 0,
+      "live_price": 15237.0,
+      "position_value": 0.0
+    },
+    {
+      "ticker": "NTPC",
+      "qty": 36,
+      "live_price": 363.0,
+      "position_value": 13068.0
+    },
+    {
+      "ticker": "RELIANCE",
+      "qty": 9,
+      "live_price": 1419.5999755859375,
+      "position_value": 12776.399780273438
+    },
+    {
+      "ticker": "SBIN",
+      "qty": 11,
+      "live_price": 1198.5999755859375,
+      "position_value": 13184.599731445312
+    },
+    {
+      "ticker": "SUNPHARMA",
+      "qty": 7,
+      "live_price": 1697.5,
+      "position_value": 11882.5
+    },
+    {
+      "ticker": "TITAN",
+      "qty": 3,
+      "live_price": 4179.2001953125,
+      "position_value": 12537.6005859375
+    },
+    {
+      "ticker": "ULTRACEMCO",
+      "qty": 1,
+      "live_price": 12963.0,
+      "position_value": 12963.0
+    }
+  ],
+  "trades": [
+    {
+      "ticker": "ASIANPAINT",
+      "signal": "SELL",
+      "reason": "Mean reversion risk rising"
+    },
+    {
+      "ticker": "AXISBANK",
+      "signal": "HOLD",
+      "reason": "Trend stable within regime"
+    },
+    {
+      "ticker": "BAJFINANCE",
+      "signal": "HOLD",
+      "reason": "Trend stable within regime"
+    },
+    {
+      "ticker": "HDFCBANK",
+      "signal": "SELL",
+      "reason": "Mean reversion risk rising"
+    },
+    {
+      "ticker": "HINDUNILVR",
+      "signal": "BUY",
+      "reason": "Momentum breakout detected"
+    },
+    {
+      "ticker": "ICICIBANK",
+      "signal": "SELL",
+      "reason": "Mean reversion risk rising"
+    },
+    {
+      "ticker": "KOTAKBANK",
+      "signal": "BUY",
+      "reason": "Momentum breakout detected"
+    },
+    {
+      "ticker": "LT",
+      "signal": "HOLD",
+      "reason": "Trend stable within regime"
+    },
+    {
+      "ticker": "MARUTI",
+      "signal": "HOLD",
+      "reason": "Trend stable within regime"
+    },
+    {
+      "ticker": "NTPC",
+      "signal": "HOLD",
+      "reason": "Trend stable within regime"
+    },
+    {
+      "ticker": "RELIANCE",
+      "signal": "HOLD",
+      "reason": "Trend stable within regime"
+    },
+    {
+      "ticker": "SBIN",
+      "signal": "HOLD",
+      "reason": "Trend stable within regime"
+    },
+    {
+      "ticker": "SUNPHARMA",
+      "signal": "HOLD",
+      "reason": "Trend stable within regime"
+    },
+    {
+      "ticker": "TITAN",
+      "signal": "SELL",
+      "reason": "Mean reversion risk rising"
+    },
+    {
+      "ticker": "ULTRACEMCO",
+      "signal": "HOLD",
+      "reason": "Trend stable within regime"
     }
   ],
   "watchlist_history": [
     {
       "symbol": "RELIANCE",
       "included_on": "2025-06-01",
-      "exited_on": "",
+      "exited_on": null,
       "reason": "Momentum entry"
     },
     {
       "symbol": "INFY",
       "included_on": "2025-07-01",
       "exited_on": "2025-12-01",
-      "reason": "Rank drop"
+      "reason": "Rank deterioration"
     }
   ],
-  "trades": [
-    {
-      "ticker": "SBIN",
-      "signal": "WAIT"
-    },
-    {
-      "ticker": "AXISBANK",
-      "signal": "HOLD"
-    },
-    {
-      "ticker": "MARUTI",
-      "signal": "HOLD"
-    },
-    {
-      "ticker": "LT",
-      "signal": "HOLD"
-    },
-    {
-      "ticker": "TITAN",
-      "signal": "HOLD"
-    },
-    {
-      "ticker": "KOTAKBANK",
-      "signal": "HOLD"
-    },
-    {
-      "ticker": "RELIANCE",
-      "signal": "HOLD"
-    },
-    {
-      "ticker": "BAJFINANCE",
-      "signal": "HOLD"
-    },
-    {
-      "ticker": "ICICIBANK",
-      "signal": "HOLD"
-    },
-    {
-      "ticker": "NTPC",
-      "signal": "HOLD"
-    },
-    {
-      "ticker": "ASIANPAINT",
-      "signal": "HOLD"
-    },
-    {
-      "ticker": "ULTRACEMCO",
-      "signal": "HOLD"
-    },
-    {
-      "ticker": "HDFCBANK",
-      "signal": "HOLD"
-    },
-    {
-      "ticker": "SUNPHARMA",
-      "signal": "HOLD"
-    },
-    {
-      "ticker": "HINDUNILVR",
-      "signal": "HOLD"
-    }
-  ],
-  "regime": "RISK OFF",
-  "last_rebalance": "2026-02-12",
-  "next_rebalance": "2026-03-01",
-  "next_rebalance_days": 16,
-  "cio_commentary": "Market breadth improving while volatility remains contained. Momentum leadership in large caps persists."
+  "cio_commentary": "Market breadth improving while volatility remains contained. Leadership concentrated in large-cap cyclicals. Portfolio positioned defensively with selective momentum exposure.",
+  "timestamp": "2026-02-13T11:57:11.518395"
 }
