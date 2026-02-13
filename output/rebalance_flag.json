@@ -1,5 +1,5 @@
 {
-  "rebalance_required": true,
+  "rebalance_required": false,
   "last_signal_state": {
     "regime": "NEUTRAL",
     "valid_signals": [
