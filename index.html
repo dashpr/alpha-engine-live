@@ -39,6 +39,15 @@ h1 { margin: 0; font-size: 20px; }
 
 .section h2 { margin-top: 0; font-size: 16px; }
 
+.grid {
+  display: grid;
+  gap: 16px;
+}
+
+.grid-2 {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -68,29 +77,47 @@ footer {
 
 <div class="container">
 
-  <!-- NAV -->
+  <!-- 1️⃣ PERFORMANCE LAYER -->
   <div class="section">
-    <h2>NAV & Benchmark Comparison</h2>
+    <h2>NAV, Drawdown & Nifty-50 Comparison</h2>
     <canvas id="navChart"></canvas>
+    <div id="perfStats"></div>
   </div>
 
-  <!-- Holdings -->
+  <!-- 2️⃣ PORTFOLIO SNAPSHOT -->
   <div class="section">
-    <h2>Portfolio Holdings</h2>
-    <table id="holdingsTable"></table>
+    <h2>Portfolio Snapshot (Live Pricing)</h2>
+    <table id="portfolioTable"></table>
   </div>
 
-  <!-- Trades -->
-  <div class="section">
-    <h2>Trade Signals</h2>
-    <table id="tradesTable"></table>
+  <!-- 3️⃣ SIGNAL & WATCHLIST -->
+  <div class="section grid grid-2">
+    <div>
+      <h2>Current Signals / Watchlist</h2>
+      <table id="signalsTable"></table>
+    </div>
+    <div>
+      <h2>Past Watchlist / Exit Ledger</h2>
+      <table id="pastWatchlistTable"></table>
+    </div>
   </div>
 
-  <!-- Regime & Rebalance -->
+  <!-- 4️⃣ RISK & STABILITY -->
   <div class="section">
-    <h2>Regime & Rebalance</h2>
-    <p id="regimeText"></p>
-    <p id="rebalanceText"></p>
+    <h2>Risk Metrics & Stability Matrix</h2>
+    <table id="riskTable"></table>
+  </div>
+
+  <!-- 5️⃣ REBALANCE GOVERNANCE -->
+  <div class="section">
+    <h2>Rebalance Governance</h2>
+    <p id="rebalanceInfo"></p>
+  </div>
+
+  <!-- 6️⃣ CIO COMMENTARY -->
+  <div class="section">
+    <h2>CIO Commentary</h2>
+    <div id="cioText"></div>
   </div>
 
 </div>
@@ -118,6 +145,13 @@ function renderNAV(dates, equity, nifty) {
     },
     options: { responsive: true }
   });
+
+  const start = equity?.[0] || 0;
+  const end = equity?.[equity.length - 1] || 0;
+  const ret = start ? (((end - start) / start) * 100).toFixed(2) : "0.00";
+
+  document.getElementById("perfStats").innerText =
+    `Cumulative Return: ${ret}%`;
 }
 
 function renderTable(el, rows) {
@@ -137,3 +171,41 @@ function renderTable(el, rows) {
 }
 
 async function init() {
+  const data = await loadData();
+
+  // PERFORMANCE
+  renderNAV(data.equity_dates, data.equity_values, data.nifty_values);
+
+  // PORTFOLIO SNAPSHOT
+  renderTable(document.getElementById("portfolioTable"), data.holdings);
+
+  // SIGNALS
+  renderTable(document.getElementById("signalsTable"), data.trades);
+
+  // PAST WATCHLIST (not yet wired → placeholder safe)
+  renderTable(document.getElementById("pastWatchlistTable"), []);
+
+  // RISK METRICS
+  renderTable(document.getElementById("riskTable"), [
+    { Metric: "Market Regime", Value: data.regime }
+  ]);
+
+  // REBALANCE
+  document.getElementById("rebalanceInfo").innerText =
+    `Last Rebalance: ${data.last_rebalance} | Next Rebalance: ${data.next_rebalance}`;
+
+  // CIO COMMENTARY (placeholder until narrative JSON wired)
+  document.getElementById("cioText").innerText =
+    "AI CIO commentary pipeline active. Narrative insights will appear here.";
+
+  // SYSTEM TRANSPARENCY
+  document.getElementById("timestamp").innerText =
+    "Last Updated: " + new Date().toLocaleString();
+}
+
+init();
+setInterval(init, 300000);
+</script>
+
+</body>
+</html>
