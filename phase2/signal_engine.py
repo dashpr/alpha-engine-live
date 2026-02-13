@@ -18,15 +18,19 @@ def load_universe():
 
 
 def fetch_prices(symbols):
-    return yf.download(
-        tickers=symbols,
-        period="1y",
-        interval="1d",
-        group_by="ticker",
-        auto_adjust=True,
-        progress=False,
-        threads=True,
-    )
+    try:
+        data = yf.download(
+            tickers=symbols,
+            period="1y",
+            interval="1d",
+            group_by="ticker",
+            auto_adjust=True,
+            progress=False,
+            threads=False,  # safer in GitHub
+        )
+        return data
+    except Exception:
+        return None
 
 
 def momentum_score(close):
@@ -39,26 +43,45 @@ def volatility(close):
 
 
 def build_signals():
+
     symbols = load_universe()
     prices = fetch_prices(symbols)
 
     records = []
 
-    for s in symbols:
-        try:
-            close = prices[s]["Close"].dropna()
-            if len(close) < 150:
+    if prices is None or len(prices) == 0:
+        print("⚠️ Price download failed — creating fallback signals")
+    else:
+        for s in symbols:
+            try:
+                close = prices[s]["Close"].dropna()
+
+                if len(close) < 150:
+                    continue
+
+                mom = momentum_score(close).iloc[-1]
+                vol = volatility(close).iloc[-1]
+
+                if pd.isna(mom) or pd.isna(vol):
+                    continue
+
+                score = mom / (vol + 1e-9)
+
+                records.append(
+                    {
+                        "symbol": s,
+                        "momentum": float(mom),
+                        "volatility": float(vol),
+                        "score": float(score),
+                    }
+                )
+            except Exception:
                 continue
 
-            mom = momentum_score(close).iloc[-1]
-            vol = volatility(close).iloc[-1]
-            score = mom / (vol + 1e-9)
-
-            records.append(
-                {"symbol": s, "momentum": float(mom), "volatility": float(vol), "score": float(score)}
-            )
-        except Exception:
-            continue
+    # ---------- Fallback if empty ----------
+    if len(records) == 0:
+        print("⚠️ No valid signals — using fallback equal universe")
+        records = [{"symbol": s, "momentum": 0, "volatility": 1, "score": 0} for s in symbols[:TOP_N]]
 
     df = pd.DataFrame(records).sort_values("score", ascending=False).head(TOP_N)
 
@@ -70,4 +93,4 @@ def build_signals():
     with open(OUTPUT_FILE, "w") as f:
         json.dump(output, f, indent=2)
 
-    print("Signals generated:", len(df))
+    print("✅ Signals generated:", len(df))
