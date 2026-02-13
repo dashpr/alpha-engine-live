@@ -1,4 +1,4 @@
-from phase2.utils import read_json, write_json, utc_now
+from phase2.utils import read_json, write_json, ist_now
 
 NAV_FILE = "phase2/data/nav.json"
 GOV_FILE = "phase2/data/governance.json"
@@ -17,7 +17,11 @@ def run():
     regime = gov.get("regime", "NEUTRAL")
     note = gov.get("regime_note", "")
 
-    top_sector = max(sectors, key=lambda x: x["weight"], default={"sector": "N/A", "weight": 0})
+    top_sector = max(
+        sectors,
+        key=lambda x: x.get("weight", 0),
+        default={"sector": "N/A", "weight": 0},
+    )
 
     text = (
         f"Portfolio NAV stands at ₹{value:,.0f} with return of {ret:.2f}%. "
@@ -27,7 +31,7 @@ def run():
     )
 
     ai = {
-        "timestamp": utc_now(),
+        "timestamp": ist_now(),
         "text": text,
     }
 
