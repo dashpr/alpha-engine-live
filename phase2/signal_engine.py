@@ -31,8 +31,15 @@ def fetch_close(symbol):
 
 
 def momentum_score(close):
-    scores = [close.pct_change(lb) for lb in LOOKBACKS]
-    return np.mean(scores, axis=0)
+    """
+    Return pandas Series of averaged multi-horizon momentum.
+    Keeps pandas index → safe for .iloc usage.
+    """
+    scores = pd.concat(
+        [close.pct_change(lb) for lb in LOOKBACKS],
+        axis=1
+    )
+    return scores.mean(axis=1)
 
 
 def volatility(close):
