@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-13T08:53:02.417904",
+  "timestamp": "2026-02-13T09:52:29.014263",
   "equity_dates": [
     "2025-06-30",
     "2025-07-31",
@@ -40,7 +40,7 @@
   "holdings": [
     {
       "ticker": "SBIN",
-      "weight_percent": 6.67,
+      "weight_percent": null,
       "live_price": null,
       "daily_change_pct": null,
       "entry_price": null,
@@ -51,7 +51,7 @@
     },
     {
       "ticker": "AXISBANK",
-      "weight_percent": 6.67,
+      "weight_percent": null,
       "live_price": null,
       "daily_change_pct": null,
       "entry_price": null,
@@ -62,7 +62,7 @@
     },
     {
       "ticker": "MARUTI",
-      "weight_percent": 6.67,
+      "weight_percent": null,
       "live_price": null,
       "daily_change_pct": null,
       "entry_price": null,
@@ -73,7 +73,7 @@
     },
     {
       "ticker": "LT",
-      "weight_percent": 6.67,
+      "weight_percent": null,
       "live_price": null,
       "daily_change_pct": null,
       "entry_price": null,
@@ -84,7 +84,7 @@
     },
     {
       "ticker": "TITAN",
-      "weight_percent": 6.67,
+      "weight_percent": null,
       "live_price": null,
       "daily_change_pct": null,
       "entry_price": null,
@@ -95,7 +95,7 @@
     },
     {
       "ticker": "KOTAKBANK",
-      "weight_percent": 6.67,
+      "weight_percent": null,
       "live_price": null,
       "daily_change_pct": null,
       "entry_price": null,
@@ -106,7 +106,7 @@
     },
     {
       "ticker": "RELIANCE",
-      "weight_percent": 6.67,
+      "weight_percent": null,
       "live_price": 2900,
       "daily_change_pct": 0,
       "entry_price": 2900,
@@ -117,7 +117,7 @@
     },
     {
       "ticker": "BAJFINANCE",
-      "weight_percent": 6.67,
+      "weight_percent": null,
       "live_price": null,
       "daily_change_pct": null,
       "entry_price": null,
@@ -128,7 +128,7 @@
     },
     {
       "ticker": "ICICIBANK",
-      "weight_percent": 6.67,
+      "weight_percent": null,
       "live_price": null,
       "daily_change_pct": null,
       "entry_price": null,
@@ -139,7 +139,7 @@
     },
     {
       "ticker": "NTPC",
-      "weight_percent": 6.67,
+      "weight_percent": null,
       "live_price": null,
       "daily_change_pct": null,
       "entry_price": null,
@@ -150,7 +150,7 @@
     },
     {
       "ticker": "ASIANPAINT",
-      "weight_percent": 6.67,
+      "weight_percent": null,
       "live_price": null,
       "daily_change_pct": null,
       "entry_price": null,
@@ -161,7 +161,7 @@
     },
     {
       "ticker": "ULTRACEMCO",
-      "weight_percent": 6.67,
+      "weight_percent": null,
       "live_price": null,
       "daily_change_pct": null,
       "entry_price": null,
@@ -172,7 +172,7 @@
     },
     {
       "ticker": "HDFCBANK",
-      "weight_percent": 6.67,
+      "weight_percent": null,
       "live_price": null,
       "daily_change_pct": null,
       "entry_price": null,
@@ -183,7 +183,7 @@
     },
     {
       "ticker": "SUNPHARMA",
-      "weight_percent": 6.67,
+      "weight_percent": null,
       "live_price": null,
       "daily_change_pct": null,
       "entry_price": null,
@@ -194,7 +194,7 @@
     },
     {
       "ticker": "HINDUNILVR",
-      "weight_percent": 6.67,
+      "weight_percent": null,
       "live_price": null,
       "daily_change_pct": null,
       "entry_price": null,
