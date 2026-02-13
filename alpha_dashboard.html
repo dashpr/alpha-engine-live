@@ -1,138 +1,112 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>AI Alpha Engine — Phase-2A PMS Console</title>
+  <meta charset="UTF-8">
+  <title>AI Alpha Engine — Phase 2A</title>
 
-<style>
-body { font-family: Arial; background:#0b1220; color:#e5e7eb; margin:30px; }
-.card { background:#111827; padding:20px; border-radius:14px; margin-bottom:20px; }
-h1 { margin-bottom:10px; }
-table { width:100%; border-collapse:collapse; }
-th, td { padding:10px; border-bottom:1px solid #1f2937; }
-.green { color:#22c55e; }
-.red { color:#ef4444; }
-.grid { display:grid; grid-template-columns: repeat(4,1fr); gap:15px; }
-.metric { background:#020617; padding:15px; border-radius:10px; }
-.small { color:#9ca3af; font-size:12px; }
-</style>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #081421;
+      color: #e6eef7;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: auto;
+      padding: 20px;
+    }
+
+    h1 { margin-bottom: 30px; }
+
+    .card {
+      background: #0f2235;
+      padding: 20px;
+      border-radius: 14px;
+      margin-bottom: 20px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #1f3a56;
+      text-align: left;
+    }
+  </style>
 </head>
 
 <body>
+<div class="container">
 
-<h1>AI Alpha Engine — Phase-2A</h1>
+<h1>AI Alpha Engine — Phase 2A</h1>
 
-<!-- NAV -->
-<div class="card">
-<h2>Portfolio NAV</h2>
-Capital: ₹<span id="capital">--</span><br>
-Value: ₹<span id="value">--</span><br>
-Return: <span id="return">--</span>%
-</div>
+<div class="card" id="nav"></div>
+<div class="card" id="deployment"></div>
+<div class="card" id="positions"></div>
+<div class="card" id="governance"></div>
+<div class="card" id="ai"></div>
 
-<!-- DEPLOYMENT -->
-<div class="card">
-<h2>Capital Deployment</h2>
-Deployed: ₹<span id="deployed">--</span><br>
-Remaining: ₹<span id="remaining">--</span><br>
-Weeks Elapsed: <span id="weeks">--</span><br>
-Drawdown: <span id="drawdown">--</span>%
-</div>
-
-<!-- POSITIONS -->
-<div class="card">
-<h2>Portfolio Positions</h2>
-<table id="positions"></table>
-</div>
-
-<!-- GOVERNANCE -->
-<div class="card">
-<h2>Rebalance & Governance</h2>
-Regime: <span id="regime">--</span><br>
-Stable Days: <span id="stable">--</span><br>
-Rebalance Required: <span id="rebalance">--</span>
-</div>
-
-<!-- AI -->
-<div class="card">
-<h2>AI Portfolio Intelligence</h2>
-<pre id="ai">Loading...</pre>
-</div>
-
-<!-- EVENTS -->
-<div class="card">
-<h2>Event Intelligence</h2>
-<ul id="events"></ul>
 </div>
 
 <script>
-const BASE = "./output/";
-
-async function loadJSON(name){
-  const r = await fetch(BASE + name + "?t=" + Date.now());
-  if (!r.ok) throw new Error(name + " missing");
-  return await r.json();
+async function loadJSON(path) {
+  const res = await fetch(path + "?t=" + Date.now());
+  return await res.json();
 }
 
-async function loadText(name){
-  const r = await fetch(BASE + name + "?t=" + Date.now());
-  if (!r.ok) throw new Error(name + " missing");
-  return await r.text();
-}
+/* NAV */
+loadJSON("phase2/nav.json").then(d => {
+  document.getElementById("nav").innerHTML = `
+    <h2>Portfolio NAV</h2>
+    Capital: ₹${d.capital}<br>
+    Value: ₹${d.value}<br>
+    Return: ${d.return_pct}%
+  `;
+});
 
-async function init(){
-  try{
+/* Deployment */
+loadJSON("phase2/deployment.json").then(d => {
+  document.getElementById("deployment").innerHTML = `
+    <h2>Capital Deployment</h2>
+    Deployed: ₹${d.deployed}<br>
+    Remaining: ₹${d.remaining}<br>
+    Weeks: ${d.weeks}<br>
+    Drawdown: ${d.drawdown}%
+  `;
+});
 
-    /* NAV */
-    const nav = await loadJSON("portfolio_nav.json");
-    document.getElementById("capital").innerText = nav.capital.toLocaleString();
-    document.getElementById("value").innerText = nav.value.toLocaleString();
-    document.getElementById("return").innerText = nav.return_pct.toFixed(2);
+/* Positions */
+loadJSON("phase2/positions.json").then(rows => {
+  let html = "<h2>Portfolio Positions</h2><table><tr><th>Symbol</th><th>Price</th><th>%</th></tr>";
+  rows.forEach(r => {
+    html += `<tr><td>${r.symbol}</td><td>${r.price}</td><td>${r.pct}</td></tr>`;
+  });
+  html += "</table>";
+  document.getElementById("positions").innerHTML = html;
+});
 
-    /* Deployment */
-    const dep = await loadJSON("deployment_state.json");
-    document.getElementById("deployed").innerText = dep.deployed.toLocaleString();
-    document.getElementById("remaining").innerText = (200000 - dep.deployed).toLocaleString();
-    document.getElementById("weeks").innerText = dep.week;
-    document.getElementById("drawdown").innerText = dep.drawdown.toFixed(2);
+/* Governance */
+loadJSON("phase2/governance.json").then(d => {
+  document.getElementById("governance").innerHTML = `
+    <h2>Rebalance & Governance</h2>
+    Regime: ${d.regime}<br>
+    Stable Days: ${d.stable_days}<br>
+    Rebalance Required: ${d.rebalance}
+  `;
+});
 
-    /* Positions */
-    const pos = await loadJSON("portfolio_positions.json");
-    let html = "<tr><th>Stock</th><th>Qty</th><th>Cost</th></tr>";
-    for (const s in pos){
-      html += `<tr>
-        <td>${s}</td>
-        <td>${pos[s].quantity.toFixed(2)}</td>
-        <td>₹${pos[s].total_cost.toFixed(0)}</td>
-      </tr>`;
-    }
-    document.getElementById("positions").innerHTML = html;
-
-    /* Governance */
-    const sig = await loadJSON("signal_state.json");
-    const reb = await loadJSON("rebalance_flag.json");
-
-    document.getElementById("regime").innerText = sig.regime;
-    document.getElementById("stable").innerText = dep.stable_days ?? "--";
-    document.getElementById("rebalance").innerText =
-      reb.rebalance_required ? "YES" : "NO";
-
-    /* AI */
-    const ai = await loadText("ai_brief.txt");
-    document.getElementById("ai").innerText = ai;
-
-    /* Events */
-    const ev = await loadJSON("event_feed.json");
-    document.getElementById("events").innerHTML =
-      ev.highlights.map(x => `<li>${x}</li>`).join("");
-
-  } catch(e){
-    console.error("Dashboard error:", e);
-  }
-}
-
-init();
+/* AI */
+loadJSON("phase2/ai.json").then(d => {
+  document.getElementById("ai").innerHTML = `
+    <h2>AI Portfolio Intelligence</h2>
+    ${d.text}
+  `;
+});
 </script>
 
 </body>
