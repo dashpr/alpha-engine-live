@@ -1,8 +1,8 @@
 {
-  "timestamp": "2026-02-13T10:42:52.347220+05:30",
+  "timestamp": "2026-02-13T10:49:32.343982+05:30",
   "regime": "NEUTRAL",
   "regime_note": "Mixed signals and moderate volatility; maintain balanced exposure.",
   "last_rebalance": null,
-  "next_evaluation": "2026-02-20T05:12:52.347212+00:00",
+  "next_evaluation": "2026-02-20T05:19:32.343974+00:00",
   "frequency": "WEEKLY"
 }
