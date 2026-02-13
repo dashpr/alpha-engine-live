@@ -1,89 +1,57 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>AI Alpha Engine</title>
-
-<style>
-body { font-family: Arial; background:#071021; color:#e6eef8; margin:30px; }
-.card { background:#0f1a26; padding:20px; margin-bottom:20px; border-radius:12px; }
-.metric { font-size:22px; font-weight:bold; margin-top:6px; }
-table { width:100%; border-collapse:collapse; margin-top:10px; }
-th, td { padding:10px; border-bottom:1px solid #1c2a36; text-align:left; }
-.green { color:#22c55e; }
-.red { color:#ef4444; }
-</style>
-</head>
-
-<body>
-
-<h1>AI Alpha Engine — Phase 2A</h1>
-
-<!-- NAV CARD -->
-<div class="card">
-<h2>Portfolio NAV</h2>
-Capital: ₹<span id="capital">--</span><br/>
-Value: ₹<span id="value">--</span><br/>
-Return: <span id="return">--</span>%
 </div>
 
-<!-- PRICES -->
 <div class="card">
 <h2>Live Prices</h2>
-<table id="priceTable"></table>
+<table id="prices"></table>
 </div>
 
-<!-- AI SUMMARY -->
 <div class="card">
 <h2>AI Portfolio Brief</h2>
-<p id="aiText">Loading...</p>
+<pre id="ai"></pre>
+</div>
+
+<div class="card">
+<h2>Event Highlights</h2>
+<ul id="events"></ul>
 </div>
 
 <script>
 const BASE = "output/";
 
-async function loadJSON(file){
-  const r = await fetch(BASE + file + "?t=" + Date.now());
+async function loadJSON(name){
+  const r = await fetch(BASE + name + "?t=" + Date.now());
   return await r.json();
 }
 
-async function loadText(file){
-  const r = await fetch(BASE + file + "?t=" + Date.now());
+async function loadText(name){
+  const r = await fetch(BASE + name + "?t=" + Date.now());
   return await r.text();
 }
 
 async function init(){
-  try {
-
-    // NAV
+  try{
     const nav = await loadJSON("portfolio_nav.json");
     document.getElementById("capital").innerText = nav.capital;
     document.getElementById("value").innerText = nav.value;
     document.getElementById("return").innerText = nav.return_pct;
 
-    // PRICES
     const prices = await loadJSON("prices_live.json");
-    const table = document.getElementById("priceTable");
-    table.innerHTML = "<tr><th>Symbol</th><th>Price</th><th>%</th></tr>";
+    let html = "<tr><th>Symbol</th><th>Price</th><th>%</th></tr>";
+    for (const s in prices){
+      const c = prices[s].change_pct ?? 0;
+      const cls = c >= 0 ? "green" : "red";
+      html += `<tr><td>${s}</td><td>${prices[s].price}</td><td class="${cls}">${c.toFixed(2)}</td></tr>`;
+    }
+    document.getElementById("prices").innerHTML = html;
 
-    Object.entries(prices).forEach(([s, d]) => {
-      const cls = d.change_pct >= 0 ? "green" : "red";
-      table.innerHTML += `
-        <tr>
-          <td>${s}</td>
-          <td>${d.price ?? "-"}</td>
-          <td class="${cls}">${d.change_pct?.toFixed(2) ?? "-"}</td>
-        </tr>`;
-    });
+    const ai = await loadText("ai_brief.txt");
+    document.getElementById("ai").innerText = ai;
 
-    // AI TEXT
-    const ai = await loadText("ai_portfolio.txt");
-    document.getElementById("aiText").innerText = ai;
+    const ev = await loadJSON("event_feed.json");
+    document.getElementById("events").innerHTML = ev.highlights.map(x => `<li>${x}</li>`).join("");
 
-  } catch(e){
-    console.error("Dashboard load error:", e);
-  }
+  } catch(e){ console.error(e); }
 }
 
 init();
