@@ -1,43 +1,28 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>AI Alpha Engine — Phase 2A</title>
+<meta charset="UTF-8">
+<title>AI Alpha Engine — Phase 2A</title>
 
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #081421;
-      color: #e6eef7;
-    }
-
-    .container {
-      max-width: 1100px;
-      margin: auto;
-      padding: 20px;
-    }
-
-    h1 { margin-bottom: 30px; }
-
-    .card {
-      background: #0f2235;
-      padding: 20px;
-      border-radius: 14px;
-      margin-bottom: 20px;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    th, td {
-      padding: 10px;
-      border-bottom: 1px solid #1f3a56;
-      text-align: left;
-    }
-  </style>
+<style>
+body{
+  margin:0;
+  font-family:Arial;
+  background:#081421;
+  color:#e6eef7;
+}
+.container{
+  max-width:1100px;
+  margin:auto;
+  padding:20px;
+}
+.card{
+  background:#0f2235;
+  padding:20px;
+  border-radius:14px;
+  margin-bottom:20px;
+}
+</style>
 </head>
 
 <body>
@@ -45,22 +30,30 @@
 
 <h1>AI Alpha Engine — Phase 2A</h1>
 
-<div class="card" id="nav"></div>
-<div class="card" id="deployment"></div>
-<div class="card" id="positions"></div>
-<div class="card" id="governance"></div>
-<div class="card" id="ai"></div>
+<div class="card" id="nav">Loading NAV...</div>
+<div class="card" id="deployment">Loading deployment...</div>
+<div class="card" id="positions">Loading positions...</div>
+<div class="card" id="governance">Loading governance...</div>
+<div class="card" id="ai">Loading AI...</div>
 
 </div>
 
 <script>
-async function loadJSON(path) {
-  const res = await fetch(path + "?t=" + Date.now());
-  return await res.json();
+
+const BASE = "/alpha-engine-live/phase2/";   // 🔥 critical fix
+
+async function loadJSON(file){
+  try{
+    const res = await fetch(BASE + file + "?t=" + Date.now());
+    return await res.json();
+  }catch(e){
+    return null;
+  }
 }
 
 /* NAV */
-loadJSON("phase2/nav.json").then(d => {
+loadJSON("nav.json").then(d=>{
+  if(!d) return;
   document.getElementById("nav").innerHTML = `
     <h2>Portfolio NAV</h2>
     Capital: ₹${d.capital}<br>
@@ -70,7 +63,8 @@ loadJSON("phase2/nav.json").then(d => {
 });
 
 /* Deployment */
-loadJSON("phase2/deployment.json").then(d => {
+loadJSON("deployment.json").then(d=>{
+  if(!d) return;
   document.getElementById("deployment").innerHTML = `
     <h2>Capital Deployment</h2>
     Deployed: ₹${d.deployed}<br>
@@ -81,9 +75,10 @@ loadJSON("phase2/deployment.json").then(d => {
 });
 
 /* Positions */
-loadJSON("phase2/positions.json").then(rows => {
+loadJSON("positions.json").then(rows=>{
+  if(!rows) return;
   let html = "<h2>Portfolio Positions</h2><table><tr><th>Symbol</th><th>Price</th><th>%</th></tr>";
-  rows.forEach(r => {
+  rows.forEach(r=>{
     html += `<tr><td>${r.symbol}</td><td>${r.price}</td><td>${r.pct}</td></tr>`;
   });
   html += "</table>";
@@ -91,7 +86,8 @@ loadJSON("phase2/positions.json").then(rows => {
 });
 
 /* Governance */
-loadJSON("phase2/governance.json").then(d => {
+loadJSON("governance.json").then(d=>{
+  if(!d) return;
   document.getElementById("governance").innerHTML = `
     <h2>Rebalance & Governance</h2>
     Regime: ${d.regime}<br>
@@ -101,13 +97,14 @@ loadJSON("phase2/governance.json").then(d => {
 });
 
 /* AI */
-loadJSON("phase2/ai.json").then(d => {
+loadJSON("ai.json").then(d=>{
+  if(!d) return;
   document.getElementById("ai").innerHTML = `
     <h2>AI Portfolio Intelligence</h2>
     ${d.text}
   `;
 });
-</script>
 
+</script>
 </body>
 </html>
