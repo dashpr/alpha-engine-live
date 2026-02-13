@@ -8,14 +8,6 @@ from sklearn.metrics import mean_squared_error
 
 
 class AlphaModel:
-    """
-    LightGBM-based weekly retrained alpha prediction model.
-
-    Safe for CI:
-    - Handles insufficient data
-    - Never crashes pipeline
-    """
-
     def __init__(self):
         self.model = None
         self.feature_cols = None
@@ -23,28 +15,22 @@ class AlphaModel:
 
     def _prepare_target(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
-
-        # 5-day forward return
         df["fwd_ret_5d"] = (
             df.groupby("symbol")["ret_1d"]
             .shift(-5)
             .rolling(5)
             .sum()
         )
-
         return df
 
     def _select_features(self, df: pd.DataFrame):
-        ignore_cols = {"date", "symbol", "fwd_ret_5d"}
-        self.feature_cols = [c for c in df.columns if c not in ignore_cols]
+        ignore = {"date", "symbol", "fwd_ret_5d"}
+        self.feature_cols = [c for c in df.columns if c not in ignore]
 
     def fit(self, df: pd.DataFrame):
-        df = self._prepare_target(df)
-        df = df.dropna()
+        df = self._prepare_target(df).dropna()
 
-        # ⭐ SAFETY: insufficient data guard
         if len(df) < 50:
-            print("⚠️ Not enough data for Alpha training. Using zero-alpha fallback.")
             self.trained = False
             return
 
@@ -58,19 +44,18 @@ class AlphaModel:
         )
 
         self.model = lgb.LGBMRegressor(
-            n_estimators=300,
+            n_estimators=200,
             learning_rate=0.05,
-            max_depth=6,
-            subsample=0.8,
-            colsample_bytree=0.8,
+            max_depth=5,
             random_state=42,
         )
 
         self.model.fit(X_train, y_train)
 
         preds = self.model.predict(X_val)
-        rmse = mean_squared_error(y_val, preds, squared=False)
 
+        # sklearn version-safe RMSE
+        rmse = np.sqrt(mean_squared_error(y_val, preds))
         print(f"Validation RMSE: {rmse:.6f}")
 
         self.trained = True
@@ -78,14 +63,11 @@ class AlphaModel:
     def predict(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
 
-        if not self.trained or self.model is None:
-            print("⚠️ Alpha model not trained. Returning zero alpha scores.")
+        if not self.trained:
             df["alpha_score"] = 0.0
             return df[["date", "symbol", "alpha_score"]]
 
-        X = df[self.feature_cols]
-        df["alpha_score"] = self.model.predict(X)
-
+        df["alpha_score"] = self.model.predict(df[self.feature_cols])
         return df[["date", "symbol", "alpha_score"]]
 
     def save(self, path):
