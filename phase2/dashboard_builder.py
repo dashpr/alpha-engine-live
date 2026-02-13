@@ -1,12 +1,12 @@
 """
-PHASE-2 DASHBOARD BUILDER (FINAL CONTRACT)
-------------------------------------------
+PHASE-2 DASHBOARD BUILDER (ROOT-LEVEL GITHUB PAGES)
+---------------------------------------------------
 
-Reads engine outputs and writes canonical dashboard JSON to:
+Creates canonical dashboard JSON at repository root:
 
-    dashboard/data.json   ← GitHub Pages source
+    data.json  ← served by GitHub Pages
 
-Also keeps optional archival copy in:
+Also keeps archive copy in:
 
     output/dashboard_data.json
 """
@@ -19,9 +19,8 @@ from datetime import datetime
 
 DATA_PATH = "data"
 OUTPUT_PATH = "output"
-DASHBOARD_DIR = "dashboard"
 
-CANONICAL_JSON = os.path.join(DASHBOARD_DIR, "data.json")
+ROOT_JSON = "data.json"
 ARCHIVE_JSON = os.path.join(OUTPUT_PATH, "dashboard_data.json")
 
 
@@ -60,19 +59,17 @@ def build_payload() -> dict:
 
 
 def save_json(payload: dict):
-    # Ensure directories exist
-    os.makedirs(DASHBOARD_DIR, exist_ok=True)
     os.makedirs(OUTPUT_PATH, exist_ok=True)
 
-    # 1️⃣ Canonical JSON for dashboard
-    with open(CANONICAL_JSON, "w") as f:
+    # 1️⃣ Canonical GitHub Pages JSON
+    with open(ROOT_JSON, "w") as f:
         json.dump(payload, f, indent=2)
 
-    # 2️⃣ Archive JSON (existing behavior preserved)
+    # 2️⃣ Archive copy
     with open(ARCHIVE_JSON, "w") as f:
         json.dump(payload, f, indent=2)
 
-    log(f"Saved canonical → {CANONICAL_JSON}")
+    log(f"Saved root JSON → {ROOT_JSON}")
     log(f"Saved archive   → {ARCHIVE_JSON}")
 
 
