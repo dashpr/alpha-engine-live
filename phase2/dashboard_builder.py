@@ -13,10 +13,10 @@ OUTPUT_PATH = "output/dashboard_data.json"
 # 1. UNIVERSE (Dynamic from Yahoo → NIFTY50 proxy)
 # ---------------------------------------------------
 TICKERS = [
-    "SBIN.NS","AXISBANK.NS","MARUTI.NS","LT.NS","TITAN.NS",
-    "KOTAKBANK.NS","RELIANCE.NS","BAJFINANCE.NS","ICICIBANK.NS",
-    "NTPC.NS","ASIANPAINT.NS","ULTRACEMCO.NS","HDFCBANK.NS",
-    "SUNPHARMA.NS","HINDUNILVR.NS"
+    "SBIN.NS", "AXISBANK.NS", "MARUTI.NS", "LT.NS", "TITAN.NS",
+    "KOTAKBANK.NS", "RELIANCE.NS", "BAJFINANCE.NS", "ICICIBANK.NS",
+    "NTPC.NS", "ASIANPAINT.NS", "ULTRACEMCO.NS", "HDFCBANK.NS",
+    "SUNPHARMA.NS", "HINDUNILVR.NS"
 ]
 
 
@@ -39,6 +39,7 @@ def build_positions(prices):
     positions = []
     for ticker, price in prices.items():
         qty = math.floor(per_stock / price)
+
         positions.append({
             "ticker": ticker,
             "qty": qty,
@@ -50,7 +51,7 @@ def build_positions(prices):
 
 
 # ---------------------------------------------------
-# 4. SIGNAL ENGINE (simple placeholder → extensible)
+# 4. SIGNAL ENGINE (placeholder → extensible later)
 # ---------------------------------------------------
 def build_signals(positions):
     signals = []
@@ -78,7 +79,7 @@ def build_signals(positions):
 
 
 # ---------------------------------------------------
-# 5. WATCHLIST HISTORY (sample → dynamic ready)
+# 5. WATCHLIST HISTORY (sample → replace in Phase-3)
 # ---------------------------------------------------
 def build_watchlist_history():
     return [
@@ -98,10 +99,11 @@ def build_watchlist_history():
 
 
 # ---------------------------------------------------
-# 6. NAV + RISK METRICS
+# 6. NAV + RISK METRICS  ⚠️ FIXED HERE
 # ---------------------------------------------------
 def build_nav_series():
-    dates = pd.date_range(end=datetime.today(), periods=9, freq="M")
+    # pandas 2.2+ requires 'ME' instead of 'M'
+    dates = pd.date_range(end=datetime.today(), periods=9, freq="ME")
 
     equity = [200000 + i * 2000 for i in range(len(dates))]
     nifty = [195000 + i * 1800 for i in range(len(dates))]
@@ -135,7 +137,7 @@ def build_rebalance():
 
 
 # ---------------------------------------------------
-# 8. CIO COMMENTARY (hedge-fund style placeholder)
+# 8. CIO COMMENTARY (placeholder → AI in Phase-3)
 # ---------------------------------------------------
 def build_cio_commentary():
     return (
