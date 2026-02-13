@@ -1,163 +1,55 @@
 import json
-from datetime import datetime
 import requests
+from datetime import datetime
 
-# =========================
-# FILE PATHS
-# =========================
+PORT = "phase2/data/portfolio_state.json"
+RISK = "phase2/data/risk.json"
+NAV = "phase2/data/nav.json"
 
-PORTFOLIO_FILE = "phase2/data/portfolio_state.json"
-RISK_FILE = "phase2/data/risk.json"
-NAV_FILE = "phase2/data/nav.json"
+EVENTS = "phase2/data/events.json"
+COMMENT = "phase2/data/ai_commentary.json"
 
-EVENTS_FILE = "phase2/data/events.json"
-COMMENTARY_FILE = "phase2/data/ai_commentary.json"
-
-
-# =========================
-# CONFIG
-# =========================
-
-TOP_EVENTS_PER_STOCK = 3
-YAHOO_NEWS_URL = "https://query1.finance.yahoo.com/v2/finance/news?symbols={}"
+NEWS = "https://query1.finance.yahoo.com/v2/finance/news?symbols={}"
+TOP = 3
 
 
-# =========================
-# LOAD HELPERS
-# =========================
-
-def load_json(path, default=None):
+def load(p):
     try:
-        with open(path) as f:
-            return json.load(f)
-    except Exception:
-        return default
+        return json.load(open(p))
+    except:
+        return {}
 
 
-# =========================
-# FETCH EVENTS FROM YAHOO
-# =========================
-
-def fetch_events(symbol: str):
-    """
-    Fetch top material Yahoo Finance news for a stock.
-    Returns list of headlines.
-    """
+def fetch(symbol):
     try:
-        url = YAHOO_NEWS_URL.format(f"{symbol}.NS")
-        r = requests.get(url, timeout=10)
-        data = r.json()
-
-        news_items = data.get("Content", {}).get("result", [])
-
-        headlines = []
-        for item in news_items[:TOP_EVENTS_PER_STOCK]:
-            title = item.get("title")
-            if title:
-                headlines.append(title)
-
-        return headlines
-
-    except Exception:
+        r = requests.get(NEWS.format(f"{symbol}.NS"), timeout=10).json()
+        items = r.get("Content", {}).get("result", [])
+        return [i.get("title") for i in items[:TOP] if i.get("title")]
+    except:
         return []
 
 
-# =========================
-# BUILD EVENTS.JSON
-# =========================
-
-def build_events(portfolio):
+def run():
+    port = load(PORT)
+    risk = load(RISK)
+    nav = load(NAV)
 
     all_events = []
+    for h in port.get("holdings", []):
+        for e in fetch(h["symbol"]):
+            all_events.append({"symbol": h["symbol"], "headline": e})
 
-    for h in portfolio.get("holdings", []):
-        symbol = h["symbol"]
-        headlines = fetch_events(symbol)
+    events_payload = {"timestamp": datetime.utcnow().isoformat(), "count": len(all_events), "events": all_events}
+    json.dump(events_payload, open(EVENTS, "w"), indent=2)
 
-        for head in headlines:
-            all_events.append({
-                "symbol": symbol,
-                "headline": head
-            })
-
-    payload = {
-        "timestamp": datetime.utcnow().isoformat(),
-        "count": len(all_events),
-        "events": all_events
-    }
-
-    with open(EVENTS_FILE, "w") as f:
-        json.dump(payload, f, indent=2)
-
-    return payload
-
-
-# =========================
-# BUILD CIO COMMENTARY
-# =========================
-
-def build_commentary(nav, risk, portfolio, events):
-
-    value = nav.get("value", 0)
-    ret = nav.get("return_pct", 0)
-
-    regime = risk.get("regime", "UNKNOWN")
-    cagr = risk.get("cagr", 0)
-    dd = risk.get("max_dd", 0)
-
-    holdings = portfolio.get("holdings", [])
-    top_symbols = ", ".join([h["symbol"] for h in holdings[:3]])
-
-    event_count = events.get("count", 0)
-
-    # Institutional CIO snapshot paragraph
     text = (
-        f"Portfolio NAV stands at ₹{value:,.0f}, reflecting a return of {ret:.2f}% "
-        f"since inception. The current risk regime is assessed as {regime}, with "
-        f"a rolling 6-month CAGR of {cagr:.2f}% and maximum drawdown contained near "
-        f"{dd:.2f}%. Portfolio positioning remains concentrated in leading momentum "
-        f"names such as {top_symbols}, aligned with prevailing trend strength across "
-        f"the NIFTY-200 universe. Recent intelligence captured {event_count} material "
-        f"stock-specific developments, which continue to be monitored for potential "
-        f"impact on allocation and risk posture. Overall stance remains disciplined, "
-        f"trend-aligned, and responsive to evolving market conditions."
+        f"Portfolio NAV stands at ₹{nav.get('value',0):,.0f}, with return {nav.get('return_pct',0):.2f}%. "
+        f"Current regime is {risk.get('regime','NA')} with 6-month CAGR {risk.get('cagr',0):.2f}% "
+        f"and drawdown near {risk.get('max_dd',0):.2f}%. "
+        f"{len(all_events)} material stock-specific events are under monitoring. "
+        f"Positioning remains trend-aligned and risk-disciplined."
     )
 
-    payload = {
-        "timestamp": datetime.utcnow().isoformat(),
-        "commentary": text
-    }
+    json.dump({"timestamp": datetime.utcnow().isoformat(), "commentary": text}, open(COMMENT, "w"), indent=2)
 
-    with open(COMMENTARY_FILE, "w") as f:
-        json.dump(payload, f, indent=2)
-
-    return payload
-
-
-# =========================
-# MAIN ENGINE
-# =========================
-
-def run():
-
-    portfolio = load_json(PORTFOLIO_FILE, {})
-    risk = load_json(RISK_FILE, {})
-    nav = load_json(NAV_FILE, {})
-
-    # 1) Events
-    events = build_events(portfolio)
-
-    # 2) Commentary
-    commentary = build_commentary(nav, risk, portfolio, events)
-
-    print("Event & Commentary engine updated.")
-    print("Events:", events.get("count", 0))
-    print("CIO commentary generated.")
-
-
-# =========================
-# RUN
-# =========================
-
-if __name__ == "__main__":
-    run()
+    print("Events:", len(all_events), "| Commentary ready")
