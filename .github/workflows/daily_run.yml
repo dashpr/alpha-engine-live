@@ -1,0 +1,51 @@
+name: Alpha Engine Daily Run
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 13 * * 1-5"
+
+jobs:
+  run-alpha:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install requests pandas numpy
+
+      # ------------------------------
+      # Phase-2A FULL ENGINE PIPELINE
+      # ------------------------------
+
+      - name: Run Phase-2 spine (prices, NAV, signals)
+        run: python phase2/runner_phase2.py
+
+      - name: Run Block-1 brain
+        run: python phase2_full/block1/run_block1.py
+
+      - name: Run Block-2 capital layer
+        run: python phase2_full/block2/run_block2.py
+
+      - name: Run Block-3 AI + events
+        run: python phase2_full/block3/run_block3.py
+
+      # ------------------------------
+      # Commit updated outputs to repo
+      # ------------------------------
+
+      - name: Commit updated output files
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git add output/*
+          git commit -m "Daily Alpha Engine update" || echo "No changes to commit"
+          git push
