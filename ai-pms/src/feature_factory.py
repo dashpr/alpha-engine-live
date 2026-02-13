@@ -1,63 +1,27 @@
 import pandas as pd
-
-from .config import ROLLING_WINDOWS, VOL_WINDOWS
+import numpy as np
 
 
 class FeatureFactory:
-
-    def __init__(self, price_df: pd.DataFrame):
-        self.df = price_df.copy()
-
-    def _returns(self):
-        for w in [1] + ROLLING_WINDOWS:
-            self.df[f"ret_{w}d"] = (
-                self.df.groupby("symbol")["close"].pct_change(w)
-            )
-
-    def _volatility(self):
-        for w in VOL_WINDOWS:
-            self.df[f"vol_{w}d"] = (
-                self.df.groupby("symbol")["ret_1d"]
-                .rolling(w)
-                .std()
-                .reset_index(level=0, drop=True)
-            )
-
-    def _drawdown(self):
-        rolling_max = (
-            self.df.groupby("symbol")["close"]
-            .cummax()
-        )
-        self.df["drawdown"] = self.df["close"] / rolling_max - 1
-
-    def _momentum(self):
-        self.df["mom_20_60"] = (
-            self.df["ret_20d"] - self.df["ret_60d"]
-        )
-
-        for ma in [50, 200]:
-            ma_series = (
-                self.df.groupby("symbol")["close"]
-                .rolling(ma)
-                .mean()
-                .reset_index(level=0, drop=True)
-            )
-            self.df[f"price_vs_ma{ma}"] = self.df["close"] / ma_series - 1
-
-    def _cross_sectional_ranks(self):
-        rank_cols = ["ret_20d", "mom_20_60", "vol_20d"]
-
-        for col in rank_cols:
-            self.df[f"rank_{col}"] = (
-                self.df.groupby("date")[col]
-                .rank(pct=True)
-            )
+    def __init__(self, df: pd.DataFrame):
+        self.df = df.sort_values(["symbol", "date"]).copy()
 
     def build_features(self) -> pd.DataFrame:
-        self._returns()
-        self._volatility()
-        self._drawdown()
-        self._momentum()
-        self._cross_sectional_ranks()
+        df = self.df.copy()
 
-        return self.df.dropna().reset_index(drop=True)
+        df["ret_1d"] = df.groupby("symbol")["close"].pct_change()
+        df["ret_5d"] = df.groupby("symbol")["close"].pct_change(5)
+        df["ret_20d"] = df.groupby("symbol")["close"].pct_change(20)
+        df["ret_60d"] = df.groupby("symbol")["close"].pct_change(60)
+
+        df["vol_20d"] = df.groupby("symbol")["ret_1d"].rolling(20).std().reset_index(0, drop=True)
+        df["vol_60d"] = df.groupby("symbol")["ret_1d"].rolling(60).std().reset_index(0, drop=True)
+
+        df["drawdown"] = df["close"] / df.groupby("symbol")["close"].cummax() - 1
+
+        df["mom_20_60"] = df["ret_20d"] - df["ret_60d"]
+
+        # ⭐ key fix → allow small datasets
+        df = df.fillna(0)
+
+        return df
