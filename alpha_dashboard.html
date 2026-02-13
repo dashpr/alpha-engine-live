@@ -1,109 +1,302 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>AI Alpha Engine — Phase 2A</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AI Alpha Engine — Investor Dashboard (Phase-2C)</title>
 
-<style>
-body{
-  margin:0;
-  font-family:Arial;
-  background:#081421;
-  color:#e6eef7;
-}
-.container{
-  max-width:1100px;
-  margin:auto;
-  padding:20px;
-}
-.card{
-  background:#0f2235;
-  padding:20px;
-  border-radius:14px;
-  margin-bottom:20px;
-}
-</style>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#071B26;
+      --card:#0f2a36;
+      --muted:#9fb2bf;
+      --accent:#7dd3fc;
+      --accent2:#60a5fa;
+      --glass: rgba(255,255,255,0.03);
+      --radius:14px;
+      font-family: "Inter", Arial, sans-serif;
+    }
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,var(--bg),#091722);color:#e6f0f3}
+    .wrap{max-width:1180px;margin:28px auto;padding:20px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:20px}
+    h1{font-size:34px;margin:0 0 6px 0;color:#ffffff}
+    .sub{color:var(--muted);font-size:13px}
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:18px;margin-top:18px}
+    .card{grid-column:span 12;background:var(--card);border-radius:var(--radius);padding:18px;box-shadow:0 6px 18px rgba(0,0,0,0.35)}
+    .col-3{grid-column:span 3}
+    .col-4{grid-column:span 4}
+    .col-6{grid-column:span 6}
+    .col-8{grid-column:span 8}
+    .row{display:flex;gap:12px;align-items:center}
+    .metric{background:var(--glass);padding:14px;border-radius:10px;flex:1}
+    .metric h3{margin:0;font-size:18px}
+    .metric p{margin:6px 0 0 0;color:var(--muted)}
+    .btn{background:linear-gradient(90deg,var(--accent),var(--accent2));padding:10px 14px;border-radius:10px;border:0;color:#042a36;font-weight:700}
+    table{width:100%;border-collapse:collapse;margin-top:10px;}
+    th,td{padding:10px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left}
+    th{color:var(--muted);font-size:13px}
+    .small{font-size:13px;color:var(--muted)}
+    .green{color:#34d399}
+    .red{color:#fb7185}
+    .pill{display:inline-block;padding:6px 8px;border-radius:999px;background:rgba(255,255,255,0.03);font-size:12px}
+    .muted{color:var(--muted)}
+    pre{white-space:pre-wrap;background:transparent;padding:0;margin:0;color:#dbeefe}
+    .loading{opacity:0.6}
+    /* responsive */
+    @media (max-width:900px){
+      .col-3,.col-4,.col-6,.col-8{grid-column:span 12}
+    }
+  </style>
 </head>
-
 <body>
-<div class="container">
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>AI Alpha Engine — Investor Dashboard</h1>
+        <div class="sub">Phase-2C • Investor UI (Design B) — Premium PMS presentation</div>
+      </div>
+      <div class="row">
+        <button class="btn" id="refreshBtn">Refresh</button>
+      </div>
+    </header>
 
-<h1>AI Alpha Engine — Phase 2A</h1>
+    <!-- HERO -->
+    <div class="grid" style="margin-top:18px">
+      <div class="card col-8">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div class="small">NAV (since inception)</div>
+            <h2 id="navTitle" style="margin:4px 0 0 0">Loading...</h2>
+            <div class="small muted" id="navSub">—</div>
+          </div>
+          <div style="width:380px">
+            <canvas id="navChart" height="110"></canvas>
+          </div>
+        </div>
+      </div>
 
-<div class="card" id="nav">Loading NAV...</div>
-<div class="card" id="deployment">Loading deployment...</div>
-<div class="card" id="positions">Loading positions...</div>
-<div class="card" id="governance">Loading governance...</div>
-<div class="card" id="ai">Loading AI...</div>
+      <div class="card col-4">
+        <div class="metric">
+          <h3 id="aum">AUM — ₹—</h3>
+          <p class="small">Assets under management (pilot capital)</p>
+        </div>
+        <div style="height:12px"></div>
+        <div class="metric">
+          <h3 id="regimeBadge">Regime — --</h3>
+          <p class="small">Current market regime (AI explained)</p>
+        </div>
+      </div>
+    </div>
 
-</div>
+    <!-- PORTFOLIO + RISK -->
+    <div class="grid">
+      <div class="card col-4">
+        <h3>Portfolio Snapshot</h3>
+        <div class="small">Top holdings & weights</div>
+        <table id="topHoldings">
+          <thead><tr><th>Symbol</th><th>Weight</th></tr></thead>
+          <tbody><tr><td colspan="2" class="muted">Loading…</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="card col-4">
+        <h3>Sector Allocation</h3>
+        <canvas id="sectorChart" height="220"></canvas>
+      </div>
+
+      <div class="card col-4">
+        <h3>Risk Metrics</h3>
+        <div style="margin-top:8px" class="small">CAGR / Max DD / Sharpe</div>
+        <div style="display:flex;gap:10px;margin-top:12px">
+          <div class="metric"><h3 id="cagr">—</h3><p class="small">CAGR</p></div>
+          <div class="metric"><h3 id="maxdd">—</h3><p class="small">Max Drawdown</p></div>
+          <div class="metric"><h3 id="sharpe">—</h3><p class="small">Sharpe</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Positions table (wide) -->
+    <div class="grid">
+      <div class="card col-8">
+        <h3>Portfolio Positions</h3>
+        <div class="small">Quantity, avg cost, MTM, % allocation</div>
+        <table id="positionsTable">
+          <thead>
+            <tr><th>Symbol</th><th>Qty</th><th>Avg Cost</th><th>Price</th><th>MTM</th><th>Weight</th></tr>
+          </thead>
+          <tbody><tr><td colspan="6" class="muted">Loading…</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="card col-4">
+        <h3>Capital Journey</h3>
+        <div class="small">Deployment progress (pilot → target)</div>
+        <div style="margin-top:12px"><canvas id="deployChart" height="160"></canvas></div>
+        <div style="margin-top:12px" class="small" id="deploySummary">Loading…</div>
+      </div>
+    </div>
+
+    <!-- AI manager note + events -->
+    <div class="grid">
+      <div class="card col-8">
+        <h3>AI Fund Manager Note — Weekly</h3>
+        <div class="small">Model-driven, plain language summary for investors</div>
+        <div style="margin-top:12px"><pre id="aiNote">Loading AI note…</pre></div>
+      </div>
+
+      <div class="card col-4">
+        <h3>Event & Trigger Intelligence</h3>
+        <div class="small">Stock-specific & sector events</div>
+        <ul id="eventsList" style="margin-top:12px"><li class="muted">Loading…</li></ul>
+      </div>
+    </div>
+
+    <!-- footer small print -->
+    <div style="height:18px"></div>
+    <div class="small muted">Phase-2C — investor UI. Data refresh is via CI producing JSON under /phase2/. Contact: technical team for data contract changes.</div>
+
+  </div>
 
 <script>
+/*
+  Phase-2C Dashboard — Design B (investor)
+  Expects JSON files under: /alpha-engine-live/phase2/
+  Files:
+   - nav.json           { chart_dates: [], chart_values: [], capital, value, return_pct, since_text }
+   - holdings.json      [ {symbol, weight, qty, avg_cost, price, mtm} ]
+   - sectors.json       [ {sector, pct} ]
+   - risk.json          { cagr, max_drawdown, sharpe }
+   - deployment.json    { deployed, remaining, weeks_elapsed, series: [..] }
+   - ai.json            { text: "..." }
+   - events.json        { highlights: ["...","..."] }
+*/
 
-const BASE = "/alpha-engine-live/phase2/";   // 🔥 critical fix
+const BASE = "/alpha-engine-live/phase2/";   // IMPORTANT: correct path for GitHub Pages
+const qs = (s) => document.querySelector(s);
 
-async function loadJSON(file){
+async function fetchJson(name){
   try{
-    const res = await fetch(BASE + file + "?t=" + Date.now());
-    return await res.json();
+    const r = await fetch(BASE + name + "?t=" + Date.now());
+    if(!r.ok) throw new Error("fetch err");
+    return await r.json();
   }catch(e){
     return null;
   }
 }
 
-/* NAV */
-loadJSON("nav.json").then(d=>{
-  if(!d) return;
-  document.getElementById("nav").innerHTML = `
-    <h2>Portfolio NAV</h2>
-    Capital: ₹${d.capital}<br>
-    Value: ₹${d.value}<br>
-    Return: ${d.return_pct}%
-  `;
+/* small helpers */
+function money(x){ return "₹" + (typeof x === "number" ? x.toLocaleString(undefined,{maximumFractionDigits:0}) : x) }
+function pct(x){ return (typeof x==="number") ? x.toFixed(2) + "%" : "--" }
+
+async function renderAll(){
+  // NAV + chart
+  const nav = await fetchJson("nav.json");
+  if(nav){
+    qs('#navTitle').innerText = money(nav.value) + " (" + nav.return_pct.toFixed(2) + "%)";
+    qs('#navSub').innerText = nav.since_text || "Since inception";
+    qs('#aum').innerText = "AUM — " + money(nav.capital);
+    qs('#regimeBadge').innerText = "Regime — " + (nav.regime || "—");
+
+    // draw nav chart if chart arrays exist
+    if(nav.chart_dates && nav.chart_values){
+      const ctx = document.getElementById('navChart').getContext('2d');
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: nav.chart_dates,
+          datasets:[{
+            label:'Portfolio',
+            data: nav.chart_values,
+            borderColor: '#7dd3fc',
+            backgroundColor: 'rgba(125,211,252,0.05)',
+            tension: 0.25,
+            pointRadius: 2
+          }]
+        },
+        options:{plugins:{legend:{display:false}},scales:{x:{grid:{display:false}}}}
+      });
+    }
+  }
+
+  // holdings
+  const holdings = await fetchJson("holdings.json");
+  if(holdings && holdings.length){
+    const tbody = qs('#topHoldings tbody');
+    tbody.innerHTML = "";
+    // top 6 weights
+    const top = holdings.slice(0,6);
+    top.forEach(h=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${h.symbol}</td><td>${h.weight}%</td>`;
+      tbody.appendChild(tr);
+    });
+    // positions table
+    const pbody = qs('#positionsTable tbody');
+    pbody.innerHTML = "";
+    holdings.forEach(h=>{
+      const row = document.createElement('tr');
+      const mtm = (h.mtm>=0) ? `<span class="green">+${money(h.mtm)}</span>` : `<span class="red">${money(h.mtm)}</span>`;
+      row.innerHTML = `<td>${h.symbol}</td><td>${(h.qty||0).toFixed(2)}</td><td>${money(h.avg_cost||0)}</td><td>${money(h.price||0)}</td><td>${mtm}</td><td>${h.weight}%</td>`;
+      pbody.appendChild(row);
+    });
+  }
+
+  // sectors
+  const sectors = await fetchJson("sectors.json");
+  if(sectors && sectors.length){
+    const ctx = document.getElementById('sectorChart').getContext('2d');
+    new Chart(ctx,{type:'doughnut',data:{labels:sectors.map(s=>s.sector),datasets:[{data:sectors.map(s=>s.pct),backgroundColor:['#60a5fa','#7dd3fc','#93c5fd','#a7f3d0','#fca5a5','#facc15']}],},options:{plugins:{legend:{position:'bottom'}}}});
+  }
+
+  // risk
+  const risk = await fetchJson("risk.json");
+  if(risk){
+    qs('#cagr').innerText = (risk.cagr || "--") + "%";
+    qs('#maxdd').innerText = (risk.max_drawdown || "--") + "%";
+    qs('#sharpe').innerText = (risk.sharpe || "--");
+  }
+
+  // deployment
+  const dep = await fetchJson("deployment.json");
+  if(dep){
+    // small timeline chart
+    const ctx2 = document.getElementById('deployChart').getContext('2d');
+    new Chart(ctx2,{type:'bar',data:{labels:dep.series_labels || [],datasets:[{label:'Deployed',data:dep.series_values || [],backgroundColor:'#7dd3fc'}]},options:{plugins:{legend:{display:false}},scales:{x:{grid:{display:false}}}}});
+    qs('#deploySummary').innerText = `Deployed: ${money(dep.deployed)} • Remaining: ${money(dep.remaining)} • Weeks: ${dep.weeks_elapsed || 0}`;
+  }
+
+  // AI note
+  const ai = await fetchJson("ai.json");
+  if(ai){
+    qs('#aiNote').innerText = ai.text || "—";
+  }
+
+  // events
+  const ev = await fetchJson("events.json");
+  if(ev && ev.highlights){
+    const ul = qs('#eventsList');
+    ul.innerHTML = "";
+    ev.highlights.forEach(h=>{
+      const li = document.createElement('li');
+      li.innerText = h;
+      ul.appendChild(li);
+    });
+  }
+}
+
+/* Refresh button */
+qs('#refreshBtn').addEventListener('click', ()=>{
+  qs('#aiNote').innerText = "Refreshing…"; renderAll();
 });
 
-/* Deployment */
-loadJSON("deployment.json").then(d=>{
-  if(!d) return;
-  document.getElementById("deployment").innerHTML = `
-    <h2>Capital Deployment</h2>
-    Deployed: ₹${d.deployed}<br>
-    Remaining: ₹${d.remaining}<br>
-    Weeks: ${d.weeks}<br>
-    Drawdown: ${d.drawdown}%
-  `;
-});
+/* auto-run */
+renderAll();
 
-/* Positions */
-loadJSON("positions.json").then(rows=>{
-  if(!rows) return;
-  let html = "<h2>Portfolio Positions</h2><table><tr><th>Symbol</th><th>Price</th><th>%</th></tr>";
-  rows.forEach(r=>{
-    html += `<tr><td>${r.symbol}</td><td>${r.price}</td><td>${r.pct}</td></tr>`;
-  });
-  html += "</table>";
-  document.getElementById("positions").innerHTML = html;
-});
-
-/* Governance */
-loadJSON("governance.json").then(d=>{
-  if(!d) return;
-  document.getElementById("governance").innerHTML = `
-    <h2>Rebalance & Governance</h2>
-    Regime: ${d.regime}<br>
-    Stable Days: ${d.stable_days}<br>
-    Rebalance Required: ${d.rebalance}
-  `;
-});
-
-/* AI */
-loadJSON("ai.json").then(d=>{
-  if(!d) return;
-  document.getElementById("ai").innerHTML = `
-    <h2>AI Portfolio Intelligence</h2>
-    ${d.text}
-  `;
-});
+/* periodic refresh every 5 minutes */
+setInterval(renderAll, 300000);
 
 </script>
 </body>
