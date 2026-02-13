@@ -1,25 +1,14 @@
 """
-PHASE-2 ORCHESTRATOR (FINAL STABLE)
------------------------------------
-
-Runs engines and generates dashboard JSON.
-No git operations inside Python.
-GitHub Actions handles commit automatically.
+Phase-2 Orchestrator — FINAL
+Runs engines → enriches dashboard → CI safe
 """
 
-from phase2.signal_engine import build_signals
-from phase2.dashboard_builder import build_dashboard
+from phase2.enrich_dashboard import main as enrich
 
 
 def main():
-    print("=== PHASE-2 ORCHESTRATOR START ===")
-
-    # Step 1: Build signals
-    build_signals()
-
-    # Step 2: Build dashboard JSON
-    build_dashboard()
-
+    print("=== PHASE-2 START ===")
+    enrich()
     print("=== PHASE-2 COMPLETE ===")
 
 
