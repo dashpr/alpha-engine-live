@@ -1,0 +1,14 @@
+[
+  {
+    "symbol": "RELIANCE.NS",
+    "entry_ts": "2026-02-13T04:10:24.117122+00:00",
+    "exit_ts": null,
+    "reason": "New signal inclusion"
+  },
+  {
+    "symbol": "HDFCBANK.NS",
+    "entry_ts": "2026-02-13T04:10:24.117134+00:00",
+    "exit_ts": null,
+    "reason": "New signal inclusion"
+  }
+]

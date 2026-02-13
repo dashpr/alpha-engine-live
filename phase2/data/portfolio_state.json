@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-02-13T04:10:24.113890+00:00",
+  "stocks": [
+    "RELIANCE.NS",
+    "HDFCBANK.NS"
+  ],
+  "weights": {
+    "RELIANCE.NS": 0.5,
+    "HDFCBANK.NS": 0.5
+  },
+  "regime": "NEUTRAL",
+  "rebalance_required": false
+}
