@@ -4,3 +4,5 @@ pyarrow
 pytest
 scikit-learn
 hmmlearn
+lightgbm
+joblib
