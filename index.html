@@ -51,9 +51,6 @@ th, td {
   text-align: left;
 }
 
-.green { color: #2ecc71; }
-.red { color: #e74c3c; }
-
 footer {
   text-align: center;
   font-size: 12px;
@@ -71,29 +68,29 @@ footer {
 
 <div class="container">
 
+  <!-- NAV -->
   <div class="section">
     <h2>NAV & Benchmark Comparison</h2>
     <canvas id="navChart"></canvas>
   </div>
 
+  <!-- Holdings -->
   <div class="section">
-    <h2>Portfolio Snapshot</h2>
-    <table id="portfolioTable"></table>
+    <h2>Portfolio Holdings</h2>
+    <table id="holdingsTable"></table>
   </div>
 
+  <!-- Trades -->
   <div class="section">
-    <h2>Risk Metrics</h2>
-    <table id="riskTable"></table>
+    <h2>Trade Signals</h2>
+    <table id="tradesTable"></table>
   </div>
 
+  <!-- Regime & Rebalance -->
   <div class="section">
-    <h2>Rebalance Governance</h2>
-    <p id="rebalanceInfo"></p>
-  </div>
-
-  <div class="section">
-    <h2>CIO Commentary</h2>
-    <div id="cioText"></div>
+    <h2>Regime & Rebalance</h2>
+    <p id="regimeText"></p>
+    <p id="rebalanceText"></p>
   </div>
 
 </div>
@@ -109,6 +106,20 @@ async function loadData() {
   return await res.json();
 }
 
+function renderNAV(dates, equity, nifty) {
+  new Chart(document.getElementById("navChart"), {
+    type: "line",
+    data: {
+      labels: dates,
+      datasets: [
+        { label: "Model Equity", data: equity },
+        { label: "Nifty 50", data: nifty }
+      ]
+    },
+    options: { responsive: true }
+  });
+}
+
 function renderTable(el, rows) {
   if (!rows || rows.length === 0) {
     el.innerHTML = "<tr><td>No data</td></tr>";
@@ -119,61 +130,10 @@ function renderTable(el, rows) {
   let html = "<tr>" + headers.map(h => `<th>${h}</th>`).join("") + "</tr>";
 
   rows.forEach(r => {
-    html += "<tr>" + headers.map(h => {
-      let v = r[h];
-      if (typeof v === "number") {
-        const cls = v > 0 ? "green" : v < 0 ? "red" : "";
-        return `<td class="${cls}">${v.toFixed(2)}</td>`;
-      }
-      return `<td>${v}</td>`;
-    }).join("") + "</tr>";
+    html += "<tr>" + headers.map(h => `<td>${r[h]}</td>`).join("") + "</tr>";
   });
 
   el.innerHTML = html;
 }
 
-function renderNAV(navSeries, benchmark) {
-  if (!navSeries) return;
-
-  new Chart(document.getElementById("navChart"), {
-    type: "line",
-    data: {
-      labels: navSeries.map(x => x.date),
-      datasets: [
-        { label: "Model NAV", data: navSeries.map(x => x.nav) },
-        { label: "Nifty 50", data: benchmark || [] }
-      ]
-    },
-    options: { responsive: true }
-  });
-}
-
-function renderRebalance(last, nextDays) {
-  document.getElementById("rebalanceInfo").innerText =
-    `Last Rebalance: ${last} | Next Rebalance In: ${nextDays} days`;
-}
-
-function renderTimestamp(ts) {
-  document.getElementById("timestamp").innerText =
-    "Last Updated: " + new Date(ts).toLocaleString();
-}
-
 async function init() {
-  const data = await loadData();
-
-  renderNAV(data.nav_series, data.benchmark_series);
-  renderTable(document.getElementById("portfolioTable"), data.portfolio);
-  renderTable(document.getElementById("riskTable"), data.risk_metrics);
-
-  renderRebalance(data.last_rebalance, data.next_rebalance_days);
-
-  document.getElementById("cioText").innerText = data.cio_commentary || "";
-  renderTimestamp(data.timestamp);
-}
-
-init();
-setInterval(init, 300000);
-</script>
-
-</body>
-</html>
