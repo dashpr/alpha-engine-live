@@ -1,8 +1,8 @@
 """
 FINAL Regime Detection Model — Production Safe
-• Handles HMM numerical failures
-• Deterministic fallback
-• Phase-3 backward compatible
+• Stable HMM with fail-safe fallback
+• Weekly confirmed regime label
+• Guaranteed test compatibility
 """
 
 from __future__ import annotations
@@ -24,19 +24,18 @@ class RegimeDetector:
 
     def _prepare_X(self, df: pd.DataFrame) -> np.ndarray:
         X = df[["ret_1d", "vol_20d", "mom_20_60"]].copy()
-
         X = X.replace([np.inf, -np.inf], np.nan).dropna()
 
         if len(X) < 50:
             raise ValueError("Not enough data")
 
-        # tiny noise for stability
+        # tiny noise → numerical stability
         X = X + np.random.normal(0, 1e-6, size=X.shape)
 
         return X.values
 
     # --------------------------------------------------
-    # FIT (Fail-safe)
+    # FIT (fail-safe)
     # --------------------------------------------------
 
     def fit(self, df: pd.DataFrame) -> None:
@@ -52,7 +51,7 @@ class RegimeDetector:
 
             model.fit(X)
 
-            # Validate probabilities & covariance
+            # validate learned params
             if (
                 not np.isfinite(model.startprob_).all()
                 or np.isnan(model.transmat_).any()
@@ -64,7 +63,7 @@ class RegimeDetector:
             self.fallback_mode = False
 
         except Exception:
-            # ⭐ Institutional fail-safe
+            # institutional fail-safe
             self.model = None
             self.fallback_mode = True
 
@@ -90,7 +89,7 @@ class RegimeDetector:
         return out.reset_index(drop=True)
 
     # --------------------------------------------------
-    # WEEKLY CONFIRMED REGIME (Phase-3 compatibility)
+    # WEEKLY CONFIRMED REGIME  ⭐ FINAL FIX
     # --------------------------------------------------
 
     def weekly_confirmed_regime(self, daily_probs: pd.DataFrame) -> pd.DataFrame:
@@ -106,10 +105,13 @@ class RegimeDetector:
             .rename(columns={"week": "date"})
         )
 
+        # ⭐ institutional confirmed regime label
+        weekly["confirmed_regime"] = weekly[regime_cols].idxmax(axis=1)
+
         return weekly
 
     # --------------------------------------------------
-    # DETERMINISTIC FALLBACK
+    # FALLBACK REGIME
     # --------------------------------------------------
 
     def _fallback_probabilities(self, df: pd.DataFrame) -> pd.DataFrame:
