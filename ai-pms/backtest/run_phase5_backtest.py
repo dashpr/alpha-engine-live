@@ -1,14 +1,14 @@
 """
 AI-PMS — PHASE-5 FROZEN INSTITUTIONAL BACKTEST
-FINAL STABLE PRODUCTION VERSION
+FINAL PRODUCTION VERSION (SINGLE FILE, NO DEPENDENCIES)
 
-Properties:
-• Uses only raw CSV history
-• Robust to NSE/Yahoo CSV format variations
+Guarantees:
+• Uses only raw historical CSV data
+• Robust to NSE/Yahoo format variability
 • No preprocessing / normalization step
-• Deterministic weekly backtest
-• Institutional cost model
-• Reproducible equity + checksum
+• Deterministic weekly portfolio simulation
+• Institutional transaction costs applied
+• Always produces validated equity curve + checksum
 """
 
 from pathlib import Path
@@ -17,7 +17,7 @@ import pandas as pd
 
 
 # ============================================================
-# PATHS
+# PATH CONFIGURATION (MONOREPO SAFE)
 # ============================================================
 
 CURRENT_FILE = Path(__file__).resolve()
@@ -29,7 +29,7 @@ OUTPUT_DIR = AIPMS_ROOT / "data" / "output" / "phase5"
 
 
 # ============================================================
-# CONFIG (FROZEN)
+# BACKTEST CONFIGURATION (FROZEN)
 # ============================================================
 
 START_DATE = "2010-01-01"
@@ -47,8 +47,9 @@ TOTAL_COST = BROKERAGE + SLIPPAGE + IMPACT
 # ============================================================
 
 def _extract_date(df: pd.DataFrame):
-    """Find date in column, index, or first column."""
+    """Locate and parse date column/index robustly."""
 
+    # direct column
     for col in ["date", "Date", "DATE"]:
         if col in df.columns:
             return pd.to_datetime(df[col], errors="coerce")
@@ -73,7 +74,7 @@ def _extract_date(df: pd.DataFrame):
 
 
 def _extract_close(df: pd.DataFrame):
-    """Find close price from common variants."""
+    """Locate close price from common column variants."""
 
     for col in [
         "close", "Close", "CLOSE",
@@ -91,7 +92,6 @@ def _canonical_date(series):
 
     series = pd.to_datetime(series, errors="coerce")
 
-    # Works for Series or DatetimeIndex
     if isinstance(series, pd.Series):
         return series.dt.normalize()
 
@@ -127,7 +127,7 @@ def load_prices() -> pd.DataFrame:
             frames.append(cleaned)
 
     if not frames:
-        raise RuntimeError("No valid price data after parsing.")
+        raise RuntimeError("❌ No valid price data after parsing.")
 
     df = pd.concat(frames, ignore_index=True)
 
@@ -139,7 +139,7 @@ def load_prices() -> pd.DataFrame:
 
 
 # ============================================================
-# FEATURES
+# FEATURE ENGINEERING
 # ============================================================
 
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -160,7 +160,7 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ============================================================
-# ALPHA (RULE-BASED ONLY)
+# RULE-BASED ALPHA MODEL
 # ============================================================
 
 def compute_alpha(df: pd.DataFrame) -> pd.DataFrame:
@@ -176,7 +176,7 @@ def compute_alpha(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ============================================================
-# BACKTEST
+# PORTFOLIO BACKTEST
 # ============================================================
 
 def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
@@ -216,8 +216,10 @@ def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
             for t in set(new_weights) | set(current_weights)
         )
 
+        # apply institutional cost
         equity -= equity * turnover * TOTAL_COST
 
+        # approximate weekly return
         weekly_ret = selected["ret_5d"].mean()
         equity *= (1 + weekly_ret)
 
@@ -228,7 +230,7 @@ def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ============================================================
-# SAVE OUTPUTS
+# SAVE OUTPUTS + CHECKSUM
 # ============================================================
 
 def save_outputs(equity_curve: pd.DataFrame):
@@ -243,11 +245,34 @@ def save_outputs(equity_curve: pd.DataFrame):
 
 
 # ============================================================
-# MAIN
+# MAIN EXECUTION
 # ============================================================
 
 def main():
     print("▶ Phase-5 Institutional Backtest Started")
 
     df = load_prices()
-    df = build_features_
+    print(f"Loaded rows: {len(df)}")
+
+    df = build_features(df)
+    print(f"Rows after feature construction: {len(df)}")
+
+    if df.empty:
+        raise RuntimeError("❌ No data after feature construction.")
+
+    df = compute_alpha(df)
+
+    equity_curve = run_backtest(df)
+
+    if equity_curve is None or equity_curve.empty:
+        raise RuntimeError("❌ Backtest produced empty equity curve.")
+
+    save_outputs(equity_curve)
+
+    print("✅ Phase-5 Backtest Complete")
+    print(f"📁 Output saved to: {OUTPUT_DIR}")
+    print(f"Final equity: {equity_curve['equity'].iloc[-1]:.4f}")
+
+
+if __name__ == "__main__":
+    main()
