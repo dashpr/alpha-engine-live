@@ -1,5 +1,6 @@
 import pandas as pd
 from pathlib import Path
+from typing import list, Optional
 
 
 class HistoricalDataEngine:
@@ -7,24 +8,30 @@ class HistoricalDataEngine:
     Institutional Historical Data Engine
     -----------------------------------
     Loads and prepares historical price data for backtesting.
+    Supports:
+        • universe filtering
+        • date filtering
+        • scalable raw data ingestion
     """
 
     def __init__(
         self,
         raw_data_path: str = "data/raw",
-        start_date: str | None = None,
-        end_date: str | None = None,
+        universe: Optional[list[str]] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
     ):
         self.raw_path = Path(raw_data_path)
+        self.universe = universe
         self.start_date = start_date
         self.end_date = end_date
 
     # --------------------------------------------------
-    # Public Runner
+    # Public runner
     # --------------------------------------------------
     def run(self) -> pd.DataFrame:
         df = self._load_all_files()
-        df = self._apply_date_filter(df)
+        df = self._apply_filters(df)
         df = df.sort_values(["symbol", "date"]).reset_index(drop=True)
         return df
 
@@ -52,7 +59,6 @@ class HistoricalDataEngine:
 
         df = pd.concat(dfs, ignore_index=True)
 
-        # Ensure required columns
         required_cols = {"date", "symbol", "close"}
         if not required_cols.issubset(df.columns):
             raise ValueError("Raw data must contain: date, symbol, close")
@@ -62,9 +68,12 @@ class HistoricalDataEngine:
         return df
 
     # --------------------------------------------------
-    # Date filtering
+    # Apply universe + date filters
     # --------------------------------------------------
-    def _apply_date_filter(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _apply_filters(self, df: pd.DataFrame) -> pd.DataFrame:
+        if self.universe:
+            df = df[df["symbol"].isin(self.universe)]
+
         if self.start_date:
             df = df[df["date"] >= pd.to_datetime(self.start_date)]
 
