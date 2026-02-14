@@ -1,11 +1,7 @@
 name: Phase-5 Institutional Backtest
 
 on:
-  # Manual trigger for audit / review
   workflow_dispatch:
-
-  # Weekly scheduled institutional run
-  # Sunday 06:00 IST ≈ 00:30 UTC
   schedule:
     - cron: "30 0 * * 0"
 
@@ -13,61 +9,73 @@ jobs:
   phase5:
     runs-on: ubuntu-latest
 
-    # --------------------------------------------------
-    # Execute inside ai-pms monorepo subfolder
-    # --------------------------------------------------
     defaults:
       run:
         working-directory: ai-pms
 
     steps:
-      # --------------------------------------------------
-      # Checkout repository
-      # --------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # --------------------------------------------------
-      # Setup Python
-      # --------------------------------------------------
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      # --------------------------------------------------
-      # Install dependencies
-      # --------------------------------------------------
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # ==================================================
-      # STEP-1 → Download historical NSE price data
-      # ==================================================
+      # --------------------------------------------------
+      # STEP-1: Show repo structure (truth check)
+      # --------------------------------------------------
+      - name: Show repo tree
+        run: |
+          echo "===== REPO ROOT ====="
+          ls -R
+          echo "===== AI-PMS FOLDER ====="
+          ls -R .
+
+      # --------------------------------------------------
+      # STEP-2: Download historical data
+      # --------------------------------------------------
       - name: Download NSE Historical Data
-        run: |
-          echo "▶ Running NSE historical downloader..."
-          python backtest/engines/nse_downloader.py
-          echo "▶ Listing raw data directory:"
-          ls -R data/raw || true
+        run: python backtest/engines/nse_downloader.py
 
-      # ==================================================
-      # STEP-2 → Run Frozen Phase-5 Institutional Backtest
-      # ==================================================
-      - name: Run Phase-5 Institutional Backtest
+      # --------------------------------------------------
+      # STEP-3: Run Phase-5 backtest (must not fail silently)
+      # --------------------------------------------------
+      - name: Run Phase-5 Backtest
         run: |
-          echo "▶ Starting Phase-5 backtest..."
+          set -e
           python backtest/run_phase5_backtest.py
-          echo "▶ Listing Phase-5 output directory:"
-          ls -R data/output/phase5 || true
 
-      # ==================================================
-      # STEP-3 → Upload audit artifacts
-      # ==================================================
+      # --------------------------------------------------
+      # STEP-4: Verify outputs exist (hard check)
+      # --------------------------------------------------
+      - name: Verify Phase-5 outputs
+        run: |
+          echo "===== CHECKING OUTPUT DIRECTORY ====="
+          ls -R data || true
+
+          if [ ! -d "data/output/phase5" ]; then
+            echo "❌ Phase-5 output folder missing"
+            exit 1
+          fi
+
+          if [ -z "$(ls -A data/output/phase5)" ]; then
+            echo "❌ Phase-5 output folder empty"
+            exit 1
+          fi
+
+          echo "✅ Phase-5 outputs verified"
+
+      # --------------------------------------------------
+      # STEP-5: Upload artifacts
+      # --------------------------------------------------
       - name: Upload Phase-5 outputs
         uses: actions/upload-artifact@v4
         with:
           name: ai-pms-phase5-results
-          path: data/output/phase5/
+          path: ai-pms/data/output/phase5/
