@@ -4,135 +4,91 @@ import numpy as np
 
 class AlphaBacktestEngine:
     """
-    Institutional Alpha Generator (Phase-5)
-
-    INPUT REQUIRED:
-        date | symbol | close
-
-    OUTPUT GUARANTEED:
-        date | ret | model | regime
+    Generates alpha signals for:
+    - momentum
+    - mean_reversion
+    - ml_factor (proxy factor blend)
     """
 
-    # ---------------------------------------------------------
-    def __init__(self, model_name: str = "momentum"):
+    def __init__(self, model_name: str):
         self.model_name = model_name
 
-    # ---------------------------------------------------------
-    # Internal data preparation (STRICT)
-    # ---------------------------------------------------------
-    def _prepare_base(self, df: pd.DataFrame) -> pd.DataFrame:
-        required = {"date", "symbol", "close"}
-
-        if not required.issubset(df.columns):
-            raise ValueError(f"Input DF must contain columns: {required}")
-
-        df = df.copy()
-
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
-        df["close"] = pd.to_numeric(df["close"], errors="coerce")
-
-        df = df.dropna(subset=["date", "symbol", "close"])
-        df = df.sort_values(["symbol", "date"])
-
-        # ---- compute 1-day return internally (CRITICAL FIX)
-        df["ret_1d"] = df.groupby("symbol")["close"].pct_change(1)
-
-        return df
-
-    # ---------------------------------------------------------
-    # Regime detection (market volatility dispersion)
-    # ---------------------------------------------------------
+    # -----------------------------------------------------
     def _detect_regime(self, df: pd.DataFrame) -> pd.Series:
         """
-        Deterministic volatility regime.
-        Uses cross-sectional std of daily returns.
+        Simple volatility regime:
+        High vol if cross-sectional std of daily returns above rolling median.
         """
+        vol = df.groupby("date")["ret_1d"].std()
+        threshold = vol.rolling(60).median()
 
-        market_vol = df.groupby("date")["ret_1d"].std()
-
-        regime = pd.Series(index=market_vol.index, dtype="object")
-
-        q1 = market_vol.quantile(0.33)
-        q2 = market_vol.quantile(0.66)
-
-        regime[market_vol <= q1] = "bull"
-        regime[(market_vol > q1) & (market_vol <= q2)] = "sideways"
-        regime[market_vol > q2] = "bear"
+        regime = (vol > threshold).astype(int)
+        regime.name = "regime"
 
         return regime
 
-    # ---------------------------------------------------------
-    # Alpha models
-    # ---------------------------------------------------------
-    def _momentum(self, df: pd.DataFrame) -> pd.Series:
-        return df.groupby("symbol")["close"].pct_change(20)
-
-    def _mean_reversion(self, df: pd.DataFrame) -> pd.Series:
-        z = df.groupby("symbol")["close"].transform(
-            lambda x: (x - x.rolling(20).mean()) / x.rolling(20).std()
-        )
-        return -z / 100
-
-    def _ml_factor(self, df: pd.DataFrame) -> pd.Series:
-        """
-        Deterministic ML proxy for Phase-5.
-        Real ML enters Phase-6.
-        """
-        mom = df.groupby("symbol")["close"].pct_change(60)
-        vol = (
+    # -----------------------------------------------------
+    def _momentum(self, df: pd.DataFrame) -> pd.DataFrame:
+        df["score"] = (
             df.groupby("symbol")["close"]
-            .pct_change()
-            .rolling(20)
-            .std()
-            .reset_index(level=0, drop=True)
+            .pct_change(20)
         )
-        return (mom - vol) / 50
+        return df
 
-    # ---------------------------------------------------------
-    def _create_alpha(self, df: pd.DataFrame) -> pd.Series:
+    # -----------------------------------------------------
+    def _mean_reversion(self, df: pd.DataFrame) -> pd.DataFrame:
+        df["score"] = -df.groupby("symbol")["close"].pct_change(5)
+        return df
 
+    # -----------------------------------------------------
+    def _ml_factor(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Proxy ML factor:
+        blend of momentum, reversal, and volatility normalization.
+        """
+        mom = df.groupby("symbol")["close"].pct_change(20)
+        rev = -df.groupby("symbol")["close"].pct_change(5)
+        vol = df.groupby("symbol")["ret_1d"].rolling(20).std().reset_index(level=0, drop=True)
+
+        df["score"] = (mom + rev) / (vol + 1e-6)
+        return df
+
+    # -----------------------------------------------------
+    def _create_alpha(self, df: pd.DataFrame) -> pd.DataFrame:
         if self.model_name == "momentum":
-            return self._momentum(df)
+            df = self._momentum(df)
+        elif self.model_name == "mean_reversion":
+            df = self._mean_reversion(df)
+        elif self.model_name == "ml_factor":
+            df = self._ml_factor(df)
+        else:
+            raise ValueError(f"Unknown alpha model: {self.model_name}")
 
-        if self.model_name == "mean_reversion":
-            return self._mean_reversion(df)
+        return df
 
-        if self.model_name == "ml_factor":
-            return self._ml_factor(df)
-
-        raise ValueError(f"Unknown alpha model: {self.model_name}")
-
-    # ---------------------------------------------------------
-    # PUBLIC RUN
-    # ---------------------------------------------------------
+    # -----------------------------------------------------
     def run(self, df: pd.DataFrame) -> pd.DataFrame:
+        print(f"\n🧠 Running Alpha Model → {self.model_name}")
 
-        if df.empty:
-            raise ValueError("Historical dataframe is empty")
+        df = df.copy()
+        df = self._create_alpha(df)
 
-        # ---- strict preparation
-        df = self._prepare_base(df)
+        regime = self._detect_regime(df)
+        df = df.merge(regime, on="date", how="left")
 
-        # ---- alpha signal
-        df["ret"] = self._create_alpha(df)
+        df = df.dropna(subset=["score", "ret_1d"])
 
-        df = df.dropna(subset=["ret"])
+        # weekly rebalance snapshot
+        df["week"] = df["date"].dt.to_period("W").dt.start_time
+        df = df.sort_values(["date", "score"], ascending=[True, False])
 
-        # ---- regime detection
-        regime_series = self._detect_regime(df)
+        # top-15
+        df["rank"] = df.groupby("week")["score"].rank(ascending=False, method="first")
+        df = df[df["rank"] <= 15]
 
-        df = df.merge(
-            regime_series.rename("regime"),
-            left_on="date",
-            right_index=True,
-            how="left",
-        )
+        df["model"] = self.model_name
+        df = df.rename(columns={"ret_1d": "ret"})
 
-        # ---- final institutional schema
-        out = df[["date", "ret", "regime"]].copy()
-        out["model"] = self.model_name
+        print(f"📈 Alpha rows: {len(df):,}")
 
-        out["ret"] = pd.to_numeric(out["ret"], errors="coerce")
-        out = out.dropna()
-
-        return out.reset_index(drop=True)
+        return df[["date", "symbol", "ret", "score", "regime", "model"]]
