@@ -13,23 +13,38 @@ RAW_DATA_PATH = "data/raw/nse_prices.csv"
 
 
 class HistoricalDataEngine:
-    def __init__(self, universe: Optional[List[str]] = None):
+    def __init__(
+        self,
+        universe: Optional[List[str]] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ):
         """
-        universe:
-            • None  → use all symbols in dataset
-            • list → filter to provided symbols
-            • str  → auto convert to single-item list
+        Parameters
+        ----------
+        universe : list[str] | str | None
+            Symbols to include.
+            • None → all symbols
+            • str  → converted to single-item list
+
+        start_date : str | None
+            Filter start date (YYYY-MM-DD)
+
+        end_date : str | None
+            Filter end date (YYYY-MM-DD)
         """
 
-        # ---- normalize universe input ----
+        # --- normalize universe ---
         if isinstance(universe, str):
             universe = [universe]
 
         self.universe = universe
+        self.start_date = pd.to_datetime(start_date) if start_date else None
+        self.end_date = pd.to_datetime(end_date) if end_date else None
 
     # -----------------------------------------------------
 
-    def _load_all_files(self) -> pd.DataFrame:
+    def _load_data(self) -> pd.DataFrame:
         """Load institutional NSE dataset."""
 
         if not os.path.exists(RAW_DATA_PATH):
@@ -38,7 +53,7 @@ class HistoricalDataEngine:
         df = pd.read_csv(
             RAW_DATA_PATH,
             parse_dates=["date"],
-            low_memory=False,  # fixes dtype warning
+            low_memory=False,
         )
 
         return df
@@ -46,15 +61,21 @@ class HistoricalDataEngine:
     # -----------------------------------------------------
 
     def _apply_filters(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Apply universe filtering if provided."""
+        """Apply universe and date filters."""
 
-        if self.universe is None:
-            return df
+        # --- universe filter ---
+        if self.universe is not None:
+            if not isinstance(self.universe, list):
+                raise TypeError("Universe must be list of symbols")
+            df = df[df["symbol"].isin(self.universe)]
 
-        if not isinstance(self.universe, list):
-            raise TypeError("Universe must be list of symbols")
+        # --- start date ---
+        if self.start_date is not None:
+            df = df[df["date"] >= self.start_date]
 
-        df = df[df["symbol"].isin(self.universe)]
+        # --- end date ---
+        if self.end_date is not None:
+            df = df[df["date"] <= self.end_date]
 
         return df
 
@@ -65,7 +86,6 @@ class HistoricalDataEngine:
 
         df = df.sort_values(["symbol", "date"]).reset_index(drop=True)
 
-        # ensure numeric
         numeric_cols = ["open", "high", "low", "close", "adj_close", "volume"]
 
         for col in numeric_cols:
@@ -81,12 +101,16 @@ class HistoricalDataEngine:
     def run(self) -> pd.DataFrame:
         """Main execution."""
 
-        df = self._load_all_files()
+        df = self._load_data()
         df = self._apply_filters(df)
         df = self._final_clean(df)
 
-        print(f"\nLoaded rows: {len(df):,}")
-        print(f"Symbols: {df['symbol'].nunique()}")
+        print("\n📊 Historical Data Loaded")
+        print(f"Rows     : {len(df):,}")
+        print(f"Symbols  : {df['symbol'].nunique()}")
+        print(
+            f"Date span: {df['date'].min().date()} → {df['date'].max().date()}"
+        )
 
         return df
 
