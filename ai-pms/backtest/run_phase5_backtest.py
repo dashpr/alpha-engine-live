@@ -1,14 +1,10 @@
 """
-PHASE-5 INSTITUTIONAL BACKTEST (ENGINE-COMPATIBLE)
---------------------------------------------------
-
-• Uses your EXISTING HistoricalDataEngine signature
-• No assumptions about constructor params
-• Runs full Alpha → Portfolio → Metrics pipeline
-• Production safe for GitHub Actions
+Phase-5 Institutional Backtest Comparator
+14-Year realistic PMS simulation with real costs
 """
 
 import pandas as pd
+import numpy as np
 from pathlib import Path
 
 from backtest.engines.data_engine import HistoricalDataEngine
@@ -17,114 +13,134 @@ from backtest.engines.portfolio_backtest_engine import PortfolioBacktestEngine
 
 
 # ============================================================
-# OUTPUT PATH
+# CONFIG (institutional locked)
 # ============================================================
 
-OUTPUT_FOLDER = Path("data/output/phase5")
-OUTPUT_FOLDER.mkdir(parents=True, exist_ok=True)
+START_DATE = "2010-01-01"
+END_DATE = "2026-02-15"
+
+REBAlANCE_DAYS = 5          # weekly
+TOP_N = 20                  # portfolio size
+
+BROKERAGE = 0.0015          # 0.15% round trip
+SLIPPAGE = 0.0005           # 0.05%
+CASH_DRAG = 0.05            # 5% idle
+
+
+DATA_FOLDER = "data/raw/nifty300"
 
 
 # ============================================================
-# STEP 1 — LOAD HISTORICAL DATA
+# LOAD HISTORICAL DATA
 # ============================================================
 
 def load_data() -> pd.DataFrame:
-    """
-    Load data using EXISTING HistoricalDataEngine
-    without passing unsupported arguments.
-    """
+    print("📊 Loading historical data...")
 
-    engine = HistoricalDataEngine()  # ← critical fix
-
+    engine = HistoricalDataEngine(data_folder=DATA_FOLDER)
     df = engine.run()
+
+    df = df[(df["date"] >= START_DATE) & (df["date"] <= END_DATE)]
 
     print("\n📊 Historical Data Loaded")
     print(f"Rows     : {len(df):,}")
-    print(f"Symbols  : {df['symbol'].nunique() if not df.empty else 0}")
-    print(
-        f"Date span: {df['date'].min() if not df.empty else 'NA'} → "
-        f"{df['date'].max() if not df.empty else 'NA'}"
-    )
-
-    if df.empty:
-        raise ValueError("❌ Historical dataframe is empty")
+    print(f"Symbols  : {df['symbol'].nunique():,}")
+    print(f"Date span: {df['date'].min()} → {df['date'].max()}")
 
     return df
 
 
 # ============================================================
-# STEP 2 — RUN ALPHA BACKTEST
+# RUN ONE ALPHA MODEL
 # ============================================================
 
-def run_alpha(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Generate alpha portfolio.
-    Uses ONLY parameters supported by your engine.
-    """
+def run_alpha_model(df: pd.DataFrame, model_name: str) -> pd.DataFrame:
+    print(f"\n🧠 Running Alpha Model → {model_name}")
 
-    engine = AlphaBacktestEngine()
+    engine = AlphaBacktestEngine(
+        model_name=model_name,
+        rebalance_days=REBAlANCE_DAYS,
+        top_n=TOP_N,
+    )
 
     alpha_df = engine.run(df)
 
-    print("\n📈 Alpha Portfolio Generated")
-    print(f"Rows : {len(alpha_df):,}")
-    print(f"Dates: {alpha_df['date'].nunique()}")
-
-    if alpha_df.empty:
-        raise ValueError("❌ Alpha dataframe is empty")
-
+    print(f"📈 Alpha rows: {len(alpha_df):,}")
     return alpha_df
 
 
 # ============================================================
-# STEP 3 — PORTFOLIO BACKTEST
+# RUN PORTFOLIO SIMULATION WITH COSTS
 # ============================================================
 
-def run_portfolio(alpha_df: pd.DataFrame) -> dict:
-    """
-    Convert alpha weights → equity curve → institutional metrics.
-    """
+def run_portfolio(alpha_df: pd.DataFrame, model_name: str) -> dict:
+    print(f"💼 Portfolio simulation → {model_name}")
 
-    engine = PortfolioBacktestEngine()
+    engine = PortfolioBacktestEngine(
+        brokerage=BROKERAGE,
+        slippage=SLIPPAGE,
+        cash_drag=CASH_DRAG,
+    )
 
     metrics = engine.run(alpha_df)
-
-    print("\n💰 Portfolio Backtest Complete")
-    print(f"CAGR        : {metrics.get('cagr', 0):.2%}")
-    print(f"Sharpe      : {metrics.get('sharpe', 0):.2f}")
-    print(f"Max Drawdown: {metrics.get('max_drawdown', 0):.2%}")
 
     return metrics
 
 
 # ============================================================
-# STEP 4 — SAVE RESULTS
-# ============================================================
-
-def save_results(metrics: dict):
-    """Persist institutional metrics."""
-
-    out_path = OUTPUT_FOLDER / "phase5_metrics.csv"
-
-    pd.DataFrame([metrics]).to_csv(out_path, index=False)
-
-    print(f"\n📁 Metrics saved → {out_path.resolve()}")
-
-
-# ============================================================
-# MAIN PIPELINE
+# MAIN PHASE-5 COMPARATOR
 # ============================================================
 
 def main():
-    print("\n🚀 Phase-5 Institutional Backtest Started")
+    print("🚀 Phase-5 Institutional Backtest Started (2010–2026)")
 
     df = load_data()
-    alpha_df = run_alpha(df)
-    metrics = run_portfolio(alpha_df)
 
-    save_results(metrics)
+    # --------------------------------------------------------
+    # Alpha models to compare
+    # --------------------------------------------------------
+    models = [
+        "momentum",
+        "mean_reversion",
+        "ml_factor",
+    ]
 
-    print("\n✅ PHASE-5 BACKTEST COMPLETE\n")
+    results = []
+
+    for model in models:
+        alpha_df = run_alpha_model(df, model)
+        metrics = run_portfolio(alpha_df, model)
+
+        metrics["model"] = model
+        results.append(metrics)
+
+    results_df = pd.DataFrame(results)
+
+    # --------------------------------------------------------
+    # CIO decision logic
+    # --------------------------------------------------------
+    best_model = results_df.sort_values("cagr", ascending=False).iloc[0]["model"]
+
+    results_df["verdict"] = "REJECTED"
+    results_df.loc[results_df["model"] == best_model, "verdict"] = "CORE PMS"
+
+    # second best = satellite
+    if len(results_df) > 1:
+        second = results_df.sort_values("cagr", ascending=False).iloc[1]["model"]
+        results_df.loc[results_df["model"] == second, "verdict"] = "SATELLITE"
+
+    # --------------------------------------------------------
+    # Save outputs
+    # --------------------------------------------------------
+    out_dir = Path("data/output/phase5")
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    results_df.to_csv(out_dir / "phase5_comparison.csv", index=False)
+
+    print("\n🏆 PHASE-5 FINAL RESULTS")
+    print(results_df.sort_values("cagr", ascending=False).to_string(index=False))
+
+    print("\n📁 Saved → data/output/phase5/phase5_comparison.csv")
 
 
 # ============================================================
