@@ -1,18 +1,16 @@
 """
-AI-PMS Phase-2.5 Normalization Engine
--------------------------------------
+AI-PMS Phase-2.5 Normalization Engine (FINAL HARDENED)
 
 Purpose:
-Convert raw NSE OHLCV CSV files into
-Phase-5 institutional backtest schema:
+Convert heterogeneous NSE/Yahoo OHLCV CSV formats into
+Phase-5 institutional schema:
 
     date,ticker,close
 
-Design principles:
+Design:
 - Deterministic
-- No ML / no features
-- No look-ahead
-- Safe overwrite
+- Fail-safe validation
+- Handles real-world column name variations
 - CI compatible
 """
 
@@ -21,7 +19,7 @@ import pandas as pd
 
 
 # ============================================================
-# PATH CONFIGURATION (MONOREPO SAFE)
+# PATH CONFIGURATION
 # ============================================================
 
 CURRENT_FILE = Path(__file__).resolve()
@@ -32,48 +30,59 @@ RAW_DATA_DIR = AIPMS_ROOT / "data" / "raw"
 
 
 # ============================================================
-# NORMALIZATION LOGIC
+# COLUMN NORMALIZATION MAP
+# ============================================================
+
+DATE_CANDIDATES = [
+    "date", "Date", "DATE"
+]
+
+CLOSE_CANDIDATES = [
+    "close", "Close", "CLOSE",
+    "adj close", "Adj Close", "ADJ CLOSE",
+    "close price", "Close Price"
+]
+
+
+# ============================================================
+# HELPER FUNCTIONS
+# ============================================================
+
+def find_column(df, candidates):
+    """Return first matching column name from candidates."""
+    for c in candidates:
+        if c in df.columns:
+            return c
+    return None
+
+
+# ============================================================
+# NORMALIZE SINGLE CSV
 # ============================================================
 
 def normalize_single_csv(csv_path: Path) -> None:
-    """
-    Convert one OHLCV CSV → Phase-5 schema.
-    Overwrites file in-place (safe deterministic transform).
-    """
 
     df = pd.read_csv(csv_path)
 
     # --------------------------------------------------------
-    # Detect column naming variations from NSE / Yahoo formats
+    # Detect required columns robustly
     # --------------------------------------------------------
-    column_map = {
-        "Date": "date",
-        "date": "date",
-        "Close": "close",
-        "close": "close",
-        "Adj Close": "close",
-        "adj_close": "close",
-    }
+    date_col = find_column(df, DATE_CANDIDATES)
+    close_col = find_column(df, CLOSE_CANDIDATES)
 
-    df = df.rename(columns=column_map)
-
-    # --------------------------------------------------------
-    # Validate required source columns
-    # --------------------------------------------------------
-    if "date" not in df.columns or "close" not in df.columns:
+    if date_col is None or close_col is None:
         raise RuntimeError(
-            f"❌ Cannot normalize {csv_path.name} → missing Date/Close columns"
+            f"❌ Cannot normalize {csv_path.name} → "
+            f"missing recognizable Date/Close columns.\n"
+            f"Available columns: {list(df.columns)}"
         )
 
-    # --------------------------------------------------------
-    # Build Phase-5 schema
-    # --------------------------------------------------------
     ticker = csv_path.stem.upper()
 
     normalized = pd.DataFrame({
-        "date": pd.to_datetime(df["date"]),
+        "date": pd.to_datetime(df[date_col], errors="coerce"),
         "ticker": ticker,
-        "close": df["close"].astype(float),
+        "close": pd.to_numeric(df[close_col], errors="coerce"),
     })
 
     # --------------------------------------------------------
@@ -87,14 +96,17 @@ def normalize_single_csv(csv_path: Path) -> None:
         .reset_index(drop=True)
     )
 
+    if normalized.empty:
+        raise RuntimeError(f"❌ {csv_path.name} produced empty normalized data")
+
     # --------------------------------------------------------
-    # Overwrite original CSV safely
+    # Overwrite original CSV
     # --------------------------------------------------------
     normalized.to_csv(csv_path, index=False)
 
 
 # ============================================================
-# MAIN NORMALIZATION RUNNER
+# MAIN RUNNER
 # ============================================================
 
 def main():
