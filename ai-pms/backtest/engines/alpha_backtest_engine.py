@@ -1,9 +1,11 @@
 """
-Alpha Backtest Engine — Phase-5 Institutional (Stable API)
+Alpha Backtest Engine — Phase-5 Institutional (FINAL STABLE)
 
-✔ Accepts old and new parameter names
-✔ Protects against empty data
-✔ Always returns valid portfolio
+✔ Supports:
+    - rebalance_days = 5
+    - rebalance = "weekly" / "monthly"
+✔ Backward compatible with all earlier runners
+✔ Safe against empty data
 """
 
 from typing import Optional
@@ -15,25 +17,43 @@ class AlphaBacktestEngine:
         self,
         top_n: int = 20,
         rebalance_days: Optional[int] = None,
-        rebalance: Optional[int] = None,
+        rebalance: Optional[object] = None,
     ):
         """
         Parameters
         ----------
         top_n : number of stocks in portfolio
 
-        rebalance_days / rebalance :
-            BOTH supported for backward compatibility
+        rebalance_days : numeric rebalance frequency
+
+        rebalance :
+            can be:
+                - int
+                - "weekly"
+                - "monthly"
         """
 
         # -------------------------------------------------
-        # Backward compatibility layer (critical fix)
+        # UNIVERSAL REBALANCE INTERPRETER  ⭐ FINAL FIX
         # -------------------------------------------------
-        if rebalance_days is None and rebalance is not None:
-            rebalance_days = rebalance
 
         if rebalance_days is None:
-            rebalance_days = 5
+
+            if isinstance(rebalance, int):
+                rebalance_days = rebalance
+
+            elif isinstance(rebalance, str):
+                r = rebalance.lower()
+
+                if r == "weekly":
+                    rebalance_days = 5
+                elif r == "monthly":
+                    rebalance_days = 21
+                else:
+                    raise ValueError(f"Unknown rebalance value: {rebalance}")
+
+            else:
+                rebalance_days = 5  # default weekly
 
         self.top_n = int(top_n)
         self.rebalance_days = int(rebalance_days)
@@ -41,7 +61,7 @@ class AlphaBacktestEngine:
     # -----------------------------------------------------
 
     def _create_simple_alpha(self, df: pd.DataFrame) -> pd.DataFrame:
-        """20-day momentum alpha (institutional placeholder)."""
+        """20-day momentum alpha."""
 
         df = df.copy()
 
