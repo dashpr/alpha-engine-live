@@ -7,12 +7,13 @@ class HistoricalDataEngine:
     """
     Institutional historical data loader.
 
-    Handles:
-    - Different NSE CSV schemas
-    - Local + GitHub + cloud paths
-    - Automatic normalization
+    Robust to:
+    - Multiple NSE CSV schemas
+    - Column naming inconsistencies
+    - Future unknown formats
     """
 
+    # -----------------------------------------------------
     def __init__(self, data_folder: str | None = None):
 
         if data_folder:
@@ -23,31 +24,61 @@ class HistoricalDataEngine:
             self.data_folder = project_root / "data" / "raw"
 
     # -----------------------------------------------------
-    def _standardize_columns(self, df: pd.DataFrame, file: str) -> pd.DataFrame:
+    def _detect_columns(self, df: pd.DataFrame, file: str) -> pd.DataFrame:
         """
-        Convert different NSE column formats → internal schema
+        Intelligent column detection instead of hardcoded mapping.
         """
 
-        df.columns = [c.lower().strip() for c in df.columns]
+        cols = {c.lower().strip(): c for c in df.columns}
+        lower_cols = list(cols.keys())
 
-        # Possible mappings
-        column_map_options = [
-            # Standard OHLCV
-            {"date": "date", "open": "open", "high": "high", "low": "low", "close": "close", "volume": "volume"},
-            # Your NSE export format
-            {"date": "date", "open": "open", "high": "high", "low": "low", "close": "close", "volume": "volume"},
-            # Alternate: capitalized
-            {"date": "date", "open": "open", "high": "high", "low": "low", "close": "close", "volume": "volume"},
-            # Format: Date Close High Low Open Volume
-            {"date": "date", "close": "close", "high": "high", "low": "low", "open": "open", "volume": "volume"},
-        ]
+        # -------- DATE --------
+        date_col = None
+        for c in lower_cols:
+            if "date" in c:
+                date_col = cols[c]
+                break
+        if not date_col:
+            raise ValueError(f"{file} → date column not found")
 
-        for mapping in column_map_options:
-            if set(mapping.keys()).issubset(df.columns):
-                df = df.rename(columns=mapping)
-                return df
+        # -------- PRICE / CLOSE --------
+        close_col = None
+        for key in ["close", "adj close", "price"]:
+            if key in lower_cols:
+                close_col = cols[key]
+                break
+        if not close_col:
+            raise ValueError(f"{file} → close/price column not found")
 
-        raise ValueError(f"{file} has unsupported column structure → {df.columns.tolist()}")
+        # -------- OPEN / HIGH / LOW / VOLUME --------
+        def find(name):
+            for c in lower_cols:
+                if name in c:
+                    return cols[c]
+            return None
+
+        open_col = find("open")
+        high_col = find("high")
+        low_col = find("low")
+        vol_col = find("vol")
+
+        required = [open_col, high_col, low_col, vol_col]
+        if any(c is None for c in required):
+            raise ValueError(f"{file} → missing OHLCV columns → {df.columns.tolist()}")
+
+        # -------- STANDARDIZE --------
+        df = df.rename(
+            columns={
+                date_col: "date",
+                open_col: "open",
+                high_col: "high",
+                low_col: "low",
+                close_col: "close",
+                vol_col: "volume",
+            }
+        )
+
+        return df[["date", "open", "high", "low", "close", "volume"]]
 
     # -----------------------------------------------------
     def _load_csvs(self) -> pd.DataFrame:
@@ -65,18 +96,17 @@ class HistoricalDataEngine:
             path = self.data_folder / file
             df = pd.read_csv(path)
 
-            # ---- normalize schema ----
-            df = self._standardize_columns(df, file)
+            # ---- intelligent normalization ----
+            df = self._detect_columns(df, file)
 
             # ---- parse date ----
             df["date"] = pd.to_datetime(df["date"], errors="coerce")
             df = df.dropna(subset=["date"])
 
+            # ---- symbol ----
             df["symbol"] = file.replace(".csv", "")
 
-            frames.append(
-                df[["date", "symbol", "open", "high", "low", "close", "volume"]]
-            )
+            frames.append(df)
 
         if not frames:
             raise ValueError("No valid CSV files found in raw data folder")
@@ -88,7 +118,7 @@ class HistoricalDataEngine:
 
         df = df.sort_values(["symbol", "date"])
 
-        # Executable next-day open return
+        # Executable next-day open return (institutional reality)
         df["ret_1d"] = (
             df.groupby("symbol")["open"]
             .shift(-1)
