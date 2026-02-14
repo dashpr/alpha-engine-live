@@ -27,7 +27,7 @@ SLIPPAGE = 0.0005           # 0.05%
 CASH_DRAG = 0.05            # 5% idle
 
 
-DATA_FOLDER = "data/raw/nifty300"
+DATA_FOLDER = "data/raw"
 
 
 # ============================================================
