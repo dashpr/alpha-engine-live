@@ -1,71 +1,32 @@
+# ai-pms/backtest/engines/portfolio_backtest_engine.py
+
 import pandas as pd
 import numpy as np
 
 
 class PortfolioBacktestEngine:
-    """
-    Institutional weekly-rebalance long-only portfolio simulator
-    Produces a clean equity curve required for CAGR computation.
-    """
-
     def __init__(
         self,
-        initial_capital: float = 100_000,
-        transaction_cost: float = 0.001,   # 10 bps
-        slippage: float = 0.0005,          # 5 bps
-        rebalance_days: int = 5,           # weekly
+        initial_capital: float = 200000,
+        brokerage: float = 0.0005,
+        slippage: float = 0.0005,
+        cash_drag: float = 0.02,
     ):
         self.initial_capital = initial_capital
-        self.transaction_cost = transaction_cost
+        self.brokerage = brokerage
         self.slippage = slippage
-        self.rebalance_days = rebalance_days
+        self.cash_drag = cash_drag
 
-    # ---------------------------------------------------------
-    # MAIN ENTRY
-    # ---------------------------------------------------------
     def run(self, alpha_df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Expected columns in alpha_df:
-        date | symbol | weight | ret
-        """
-
-        required = {"date", "symbol", "weight", "ret"}
+        required = {"date", "ret"}
         if not required.issubset(alpha_df.columns):
             raise ValueError(f"Alpha DF must contain columns: {required}")
 
-        df = alpha_df.copy()
-        df = df.sort_values("date")
+        daily_ret = alpha_df.groupby("date")["ret"].sum()
 
-        # group daily portfolio return
-        portfolio_returns = (
-            df.groupby("date")
-            .apply(lambda x: np.sum(x["weight"] * x["ret"]))
-            .rename("gross_ret")
-            .reset_index()
-        )
+        cost = self.brokerage + self.slippage
+        daily_ret = daily_ret - cost / 5  # weekly cost spread
 
-        # -----------------------------------------------------
-        # APPLY COSTS ON REBALANCE DAYS
-        # -----------------------------------------------------
-        portfolio_returns["cost"] = 0.0
+        equity = (1 + daily_ret).cumprod() * self.initial_capital
 
-        rebalance_idx = np.arange(0, len(portfolio_returns), self.rebalance_days)
-        portfolio_returns.loc[rebalance_idx, "cost"] = (
-            self.transaction_cost + self.slippage
-        )
-
-        portfolio_returns["net_ret"] = (
-            portfolio_returns["gross_ret"] - portfolio_returns["cost"]
-        )
-
-        # -----------------------------------------------------
-        # EQUITY CURVE
-        # -----------------------------------------------------
-        equity = [self.initial_capital]
-
-        for r in portfolio_returns["net_ret"].iloc[1:]:
-            equity.append(equity[-1] * (1 + r))
-
-        portfolio_returns["equity"] = equity
-
-        return portfolio_returns[["date", "equity", "net_ret"]]
+        return pd.DataFrame({"date": daily_ret.index, "equity": equity}).reset_index(drop=True)
