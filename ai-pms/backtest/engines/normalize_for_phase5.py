@@ -1,11 +1,12 @@
 """
-AI-PMS Phase-2.5 Normalization Engine — FINAL (Production Grade)
+AI-PMS Phase-2.5 Normalization Engine — FINAL STABLE
 
-Handles:
-• Date in column OR index
-• Multiple Close column names
-• Real-world messy NSE/Yahoo CSVs
-• Never crashes full pipeline — skips bad files safely
+Guarantees:
+• Handles messy NSE/Yahoo CSVs
+• Extracts date from column OR index
+• Detects multiple close column names
+• Canonicalizes date → YYYY-MM-DD (NO time component)
+• Never crashes full pipeline
 """
 
 from pathlib import Path
@@ -30,8 +31,8 @@ RAW_DATA_DIR = AIPMS_ROOT / "data" / "raw"
 DATE_CANDIDATES = ["date", "Date", "DATE"]
 CLOSE_CANDIDATES = [
     "close", "Close", "CLOSE",
-    "adj close", "Adj Close", "ADJ CLOSE",
-    "price", "Price", "PRICE"
+    "adj close", "Adj Close",
+    "price", "Price"
 ]
 
 
@@ -46,37 +47,45 @@ def find_column(df, candidates):
     return None
 
 
-def extract_date_series(df: pd.DataFrame):
+def extract_date(df: pd.DataFrame):
     """
-    Return a pandas Series of dates from:
-    • explicit date column
-    • index if datetime-like
-    • first unnamed column
+    Extract date series from:
+    • explicit column
+    • index
+    • first column
     """
 
-    # Case-1: explicit column
+    # explicit column
     date_col = find_column(df, DATE_CANDIDATES)
     if date_col:
         return pd.to_datetime(df[date_col], errors="coerce")
 
-    # Case-2: index contains dates
+    # index
     try:
-        idx_dates = pd.to_datetime(df.index, errors="coerce")
-        if idx_dates.notna().sum() > len(df) * 0.5:
-            return idx_dates
+        idx = pd.to_datetime(df.index, errors="coerce")
+        if idx.notna().sum() > len(df) * 0.5:
+            return idx
     except Exception:
         pass
 
-    # Case-3: first unnamed column
-    first_col = df.columns[0]
+    # first column fallback
     try:
-        col_dates = pd.to_datetime(df[first_col], errors="coerce")
-        if col_dates.notna().sum() > len(df) * 0.5:
-            return col_dates
+        col0 = pd.to_datetime(df.iloc[:, 0], errors="coerce")
+        if col0.notna().sum() > len(df) * 0.5:
+            return col0
     except Exception:
         pass
 
     return None
+
+
+def canonicalize_date(series: pd.Series) -> pd.Series:
+    """
+    Convert ANY datetime → strict YYYY-MM-DD.
+    Removes time, timezone, nanoseconds.
+    """
+    series = pd.to_datetime(series, errors="coerce")
+    return series.dt.normalize()  # midnight only
 
 
 # ============================================================
@@ -84,30 +93,20 @@ def extract_date_series(df: pd.DataFrame):
 # ============================================================
 
 def normalize_single_csv(csv_path: Path) -> bool:
-    """
-    Returns True if normalized successfully, False if skipped.
-    """
 
     df = pd.read_csv(csv_path)
 
-    # ----- detect date -----
-    date_series = extract_date_series(df)
-
-    # ----- detect close -----
+    date_series = extract_date(df)
     close_col = find_column(df, CLOSE_CANDIDATES)
 
     if date_series is None or close_col is None:
-        print(
-            f"⚠ Skipping {csv_path.name} "
-            f"(date or close not detectable). "
-            f"Columns: {list(df.columns)}"
-        )
+        print(f"⚠ Skipping {csv_path.name} → cannot detect date/close")
         return False
 
     ticker = csv_path.stem.upper()
 
     normalized = pd.DataFrame({
-        "date": date_series,
+        "date": canonicalize_date(date_series),
         "ticker": ticker,
         "close": pd.to_numeric(df[close_col], errors="coerce"),
     })
@@ -121,7 +120,7 @@ def normalize_single_csv(csv_path: Path) -> bool:
     )
 
     if normalized.empty:
-        print(f"⚠ Skipping {csv_path.name} (empty after cleaning)")
+        print(f"⚠ Skipping {csv_path.name} → empty after cleaning")
         return False
 
     normalized.to_csv(csv_path, index=False)
@@ -139,18 +138,17 @@ def main():
     if not csv_files:
         raise RuntimeError(f"No CSV files found in {RAW_DATA_DIR}")
 
-    success = 0
-    skipped = 0
+    ok, skip = 0, 0
 
-    for csv_path in csv_files:
-        if normalize_single_csv(csv_path):
-            print(f"✔ Normalized: {csv_path.name}")
-            success += 1
+    for csv in csv_files:
+        if normalize_single_csv(csv):
+            print(f"✔ Normalized: {csv.name}")
+            ok += 1
         else:
-            skipped += 1
+            skip += 1
 
     print("--------------------------------------------------")
-    print(f"Normalization complete → Success: {success}, Skipped: {skipped}")
+    print(f"Normalization complete → Success: {ok}, Skipped: {skip}")
     print("--------------------------------------------------")
 
 
