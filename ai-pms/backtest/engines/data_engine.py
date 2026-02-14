@@ -1,91 +1,91 @@
-import os
+"""
+Historical Data Engine
+Loads Nifty-300 CSV history for institutional backtesting
+"""
+
 import pandas as pd
-from typing import List
+from pathlib import Path
 
 
 class HistoricalDataEngine:
     """
-    Institutional Historical Data Loader
-    Reads ALL CSVs from data/raw, cleans numerics, merges to single dataframe.
+    Production-grade historical loader
     """
 
-    def __init__(self, data_path: str = "data/raw"):
-        self.data_path = data_path
+    def __init__(self, data_folder: str = "data/raw/nifty300"):
+        self.data_folder = Path(data_folder)
 
-    # -----------------------------------------------------
-    # Clean numeric columns safely
-    # -----------------------------------------------------
-    def _clean_numeric(self, df: pd.DataFrame) -> pd.DataFrame:
-        numeric_cols = ["open", "high", "low", "close", "volume"]
+    # ======================================================
+    # MAIN ENTRY
+    # ======================================================
 
-        for col in numeric_cols:
-            if col in df.columns:
-                df[col] = (
-                    df[col]
-                    .astype(str)
-                    .str.replace(",", "", regex=False)
-                    .str.replace(" ", "", regex=False)
-                )
-                df[col] = pd.to_numeric(df[col], errors="coerce")
+    def run(self) -> pd.DataFrame:
+        if not self.data_folder.exists():
+            raise FileNotFoundError(f"{self.data_folder} not found")
+
+        df = self._load_all_csv()
+        df = self._clean_dataframe(df)
 
         return df
 
-    # -----------------------------------------------------
-    # Load all symbol CSVs
-    # -----------------------------------------------------
-    def _load_data(self) -> pd.DataFrame:
-        if not os.path.exists(self.data_path):
-            raise FileNotFoundError(f"{self.data_path} folder not found")
+    # ======================================================
+    # LOAD ALL CSV FILES
+    # ======================================================
 
-        files: List[str] = [f for f in os.listdir(self.data_path) if f.endswith(".csv")]
+    def _load_all_csv(self) -> pd.DataFrame:
+        files = list(self.data_folder.glob("*.csv"))
 
-        if len(files) == 0:
-            raise FileNotFoundError("No CSV files found in data/raw")
+        if not files:
+            raise FileNotFoundError(f"No CSV files inside {self.data_folder}")
 
-        dfs = []
+        all_data = []
 
-        for file in files:
-            symbol = file.replace(".csv", "").upper()
-            path = os.path.join(self.data_path, file)
+        for f in files:
+            try:
+                temp = pd.read_csv(f)
 
-            df = pd.read_csv(path)
+                # infer symbol from filename
+                symbol = f.stem.upper()
+                temp["symbol"] = symbol
 
-            # --- Standardize column names ---
-            df.columns = [c.lower().strip() for c in df.columns]
+                all_data.append(temp)
 
-            # --- Fix date column ---
-            if "date" not in df.columns:
-                df.rename(columns={df.columns[0]: "date"}, inplace=True)
+            except Exception as e:
+                print(f"⚠️ Skipped {f.name} → {e}")
 
-            df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        if not all_data:
+            raise ValueError("No valid CSV data loaded")
 
-            # --- Clean numerics ---
-            df = self._clean_numeric(df)
+        return pd.concat(all_data, ignore_index=True)
 
-            # --- Keep required columns ---
-            keep_cols = [c for c in ["date", "open", "high", "low", "close", "volume"] if c in df.columns]
-            df = df[keep_cols].copy()
+    # ======================================================
+    # CLEAN DATAFRAME
+    # ======================================================
 
-            df["symbol"] = symbol
+    def _clean_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
+        # --- standard column rename (case-safe)
+        df.columns = [c.lower().strip() for c in df.columns]
 
-            dfs.append(df)
+        # --- required columns
+        required = {"date", "open", "high", "low", "close", "volume", "symbol"}
+        missing = required - set(df.columns)
 
-        merged = pd.concat(dfs, ignore_index=True)
+        if missing:
+            raise ValueError(f"Missing required columns: {missing}")
 
-        # Drop rows without close price
-        merged = merged.dropna(subset=["close"])
+        # --- date parsing (fast & safe)
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
 
-        return merged
+        # --- numeric conversion
+        price_cols = ["open", "high", "low", "close", "volume"]
 
-    # -----------------------------------------------------
-    # Public run method
-    # -----------------------------------------------------
-    def run(self) -> pd.DataFrame:
-        df = self._load_data()
+        for col in price_cols:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
 
-        print("\n📊 Historical Data Loaded")
-        print(f"Rows     : {len(df):,}")
-        print(f"Symbols  : {df['symbol'].nunique()}")
-        print(f"Date span: {df['date'].min()} → {df['date'].max()}")
+        # --- drop bad rows
+        df = df.dropna(subset=["date", "close"])
+
+        # --- sort for backtest engines
+        df = df.sort_values(["date", "symbol"]).reset_index(drop=True)
 
         return df
