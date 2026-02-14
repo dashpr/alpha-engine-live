@@ -1,6 +1,6 @@
 import pandas as pd
 from pathlib import Path
-from typing import list, Optional
+from typing import Optional
 
 
 class HistoricalDataEngine:
