@@ -1,77 +1,87 @@
-"""
-Institutional Portfolio Backtest Engine
-Converts alpha signals → equity curve → performance metrics.
-"""
-
 import pandas as pd
 import numpy as np
 
 
 class PortfolioBacktestEngine:
     """
-    Runs portfolio simulation on alpha dataframe.
+    Institutional Portfolio Backtest Engine
+
+    Handles:
+    - Transaction costs
+    - Slippage
+    - Market impact
+    - Equity curve generation
+    - CAGR / Sharpe / Drawdown
     """
 
-    def __init__(self, initial_capital: float = 100_000):
-        self.initial_capital = initial_capital
+    def __init__(
+        self,
+        brokerage: float = 0.0005,   # 5 bps
+        slippage: float = 0.0007,    # 7 bps
+        impact: float = 0.0003,      # 3 bps
+    ):
+        self.total_cost = brokerage + slippage + impact
 
-    # -----------------------------------------------------
-    # Build equity curve
-    # -----------------------------------------------------
-    def _build_equity_curve(self, df: pd.DataFrame) -> pd.Series:
-        """
-        Assumes df has:
-        date | symbol | ret | weight
-        """
-
+    # ------------------------------------------------------------------
+    # Equity curve
+    # ------------------------------------------------------------------
+    def _build_equity_curve(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
-        df["weighted_ret"] = df["ret"] * df["weight"]
 
-        daily_ret = df.groupby("date")["weighted_ret"].sum()
-
-        equity = (1 + daily_ret).cumprod() * self.initial_capital
-
-        return equity
-
-    # -----------------------------------------------------
-    # Compute metrics
-    # -----------------------------------------------------
-    def _compute_metrics(self, equity: pd.Series) -> dict:
-        returns = equity.pct_change().dropna()
-
-        cagr = (equity.iloc[-1] / equity.iloc[0]) ** (252 / len(equity)) - 1
-
-        max_dd = ((equity / equity.cummax()) - 1).min()
-
-        sharpe = np.sqrt(252) * returns.mean() / returns.std() if returns.std() != 0 else 0
-
-        return {
-            "CAGR": round(float(cagr), 4),
-            "Max Drawdown": round(float(max_dd), 4),
-            "Sharpe": round(float(sharpe), 3),
-        }
-
-    # -----------------------------------------------------
-    # PUBLIC RUN METHOD  ← CRITICAL STANDARDIZATION
-    # -----------------------------------------------------
-    def run(self, alpha_df: pd.DataFrame) -> dict:
-        """
-        Main institutional entrypoint.
-        """
-
-        if alpha_df.empty:
-            raise ValueError("Alpha dataframe is empty")
-
-        required_cols = {"date", "ret", "weight"}
-        if not required_cols.issubset(alpha_df.columns):
+        required_cols = {"date", "weight", "ret"}
+        if not required_cols.issubset(df.columns):
             raise ValueError(f"Alpha DF must contain columns: {required_cols}")
 
-        equity = self._build_equity_curve(alpha_df)
+        # Portfolio daily return
+        portfolio_ret = (
+            df.groupby("date")
+            .apply(lambda x: np.sum(x["weight"] * x["ret"]))
+            .sort_index()
+        )
 
-        metrics = self._compute_metrics(equity)
+        # Apply institutional cost
+        portfolio_ret = portfolio_ret - self.total_cost
 
-        print("\n📊 Portfolio Backtest Complete")
-        for k, v in metrics.items():
-            print(f"{k}: {v}")
+        equity = (1 + portfolio_ret).cumprod()
+
+        out = pd.DataFrame({
+            "date": portfolio_ret.index,
+            "ret": portfolio_ret.values,
+            "equity": equity.values,
+        })
+
+        return out
+
+    # ------------------------------------------------------------------
+    # Metrics
+    # ------------------------------------------------------------------
+    def _compute_metrics(self, equity_df: pd.DataFrame) -> dict:
+        ret = equity_df["ret"]
+
+        total_return = equity_df["equity"].iloc[-1] - 1
+        years = len(equity_df) / 252
+
+        cagr = (1 + total_return) ** (1 / years) - 1 if years > 0 else 0
+
+        sharpe = (
+            np.sqrt(252) * ret.mean() / ret.std()
+            if ret.std() > 0 else 0
+        )
+
+        drawdown = equity_df["equity"] / equity_df["equity"].cummax() - 1
+        max_dd = drawdown.min()
+
+        return {
+            "CAGR": round(cagr * 100, 2),
+            "Sharpe": round(sharpe, 2),
+            "MaxDD": round(max_dd * 100, 2),
+        }
+
+    # ------------------------------------------------------------------
+    # Public run
+    # ------------------------------------------------------------------
+    def run(self, alpha_df: pd.DataFrame) -> dict:
+        equity_df = self._build_equity_curve(alpha_df)
+        metrics = self._compute_metrics(equity_df)
 
         return metrics
