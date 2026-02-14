@@ -6,12 +6,13 @@ class PortfolioBacktestEngine:
     """
     Institutional Portfolio Backtest Engine
 
-    Handles:
-    - Transaction costs
+    Supports:
+    - Brokerage
     - Slippage
     - Market impact
-    - Equity curve generation
-    - CAGR / Sharpe / Drawdown
+    - Cash drag
+    - Equity curve
+    - CAGR / Sharpe / Max Drawdown
     """
 
     def __init__(
@@ -19,12 +20,14 @@ class PortfolioBacktestEngine:
         brokerage: float = 0.0005,   # 5 bps
         slippage: float = 0.0007,    # 7 bps
         impact: float = 0.0003,      # 3 bps
+        cash_drag: float = 0.0002,   # 2 bps idle cash cost
     ):
-        self.total_cost = brokerage + slippage + impact
+        # Total institutional cost per rebalance day
+        self.total_cost = brokerage + slippage + impact + cash_drag
 
-    # ------------------------------------------------------------------
-    # Equity curve
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------
+    # Build equity curve
+    # -------------------------------------------------------------
     def _build_equity_curve(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
 
@@ -32,29 +35,28 @@ class PortfolioBacktestEngine:
         if not required_cols.issubset(df.columns):
             raise ValueError(f"Alpha DF must contain columns: {required_cols}")
 
-        # Portfolio daily return
+        # Daily portfolio return
         portfolio_ret = (
             df.groupby("date")
             .apply(lambda x: np.sum(x["weight"] * x["ret"]))
             .sort_index()
         )
 
-        # Apply institutional cost
+        # Subtract institutional costs
         portfolio_ret = portfolio_ret - self.total_cost
 
+        # Equity curve
         equity = (1 + portfolio_ret).cumprod()
 
-        out = pd.DataFrame({
+        return pd.DataFrame({
             "date": portfolio_ret.index,
             "ret": portfolio_ret.values,
             "equity": equity.values,
         })
 
-        return out
-
-    # ------------------------------------------------------------------
-    # Metrics
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------
+    # Performance metrics
+    # -------------------------------------------------------------
     def _compute_metrics(self, equity_df: pd.DataFrame) -> dict:
         ret = equity_df["ret"]
 
@@ -77,11 +79,10 @@ class PortfolioBacktestEngine:
             "MaxDD": round(max_dd * 100, 2),
         }
 
-    # ------------------------------------------------------------------
-    # Public run
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------
+    # Public runner
+    # -------------------------------------------------------------
     def run(self, alpha_df: pd.DataFrame) -> dict:
         equity_df = self._build_equity_curve(alpha_df)
         metrics = self._compute_metrics(equity_df)
-
         return metrics
