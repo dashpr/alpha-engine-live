@@ -1,14 +1,12 @@
 """
 AI-PMS — PHASE-5 FROZEN INSTITUTIONAL BACKTEST
-FINAL PRODUCTION VERSION (SINGLE FILE, NO DEPENDENCIES)
+FINAL STABLE VERSION — ZERO ITERATION
 
-Guarantees:
-• Uses only raw historical CSV data
-• Robust to NSE/Yahoo format variability
-• No preprocessing / normalization step
-• Deterministic weekly portfolio simulation
-• Institutional transaction costs applied
-• Always produces validated equity curve + checksum
+• Uses only raw CSV history
+• Robust parsing of NSE/Yahoo formats
+• Deterministic weekly portfolio
+• Institutional costs included
+• Always produces equity curve + checksum
 """
 
 from pathlib import Path
@@ -17,7 +15,7 @@ import pandas as pd
 
 
 # ============================================================
-# PATH CONFIGURATION (MONOREPO SAFE)
+# PATHS
 # ============================================================
 
 CURRENT_FILE = Path(__file__).resolve()
@@ -29,10 +27,9 @@ OUTPUT_DIR = AIPMS_ROOT / "data" / "output" / "phase5"
 
 
 # ============================================================
-# BACKTEST CONFIGURATION (FROZEN)
+# CONFIG
 # ============================================================
 
-START_DATE = "2010-01-01"
 PORTFOLIO_SIZE = 15
 INITIAL_CAPITAL = 1.0
 
@@ -47,14 +44,11 @@ TOTAL_COST = BROKERAGE + SLIPPAGE + IMPACT
 # ============================================================
 
 def _extract_date(df: pd.DataFrame):
-    """Locate and parse date column/index robustly."""
 
-    # direct column
     for col in ["date", "Date", "DATE"]:
         if col in df.columns:
             return pd.to_datetime(df[col], errors="coerce")
 
-    # index
     try:
         idx = pd.to_datetime(df.index, errors="coerce")
         if idx.notna().sum() > len(df) * 0.5:
@@ -62,7 +56,6 @@ def _extract_date(df: pd.DataFrame):
     except Exception:
         pass
 
-    # first column fallback
     try:
         col0 = pd.to_datetime(df.iloc[:, 0], errors="coerce")
         if col0.notna().sum() > len(df) * 0.5:
@@ -74,7 +67,6 @@ def _extract_date(df: pd.DataFrame):
 
 
 def _extract_close(df: pd.DataFrame):
-    """Locate close price from common column variants."""
 
     for col in [
         "close", "Close", "CLOSE",
@@ -88,8 +80,6 @@ def _extract_close(df: pd.DataFrame):
 
 
 def _canonical_date(series):
-    """Force strict YYYY-MM-DD pandas datetime."""
-
     series = pd.to_datetime(series, errors="coerce")
 
     if isinstance(series, pd.Series):
@@ -99,7 +89,6 @@ def _canonical_date(series):
 
 
 def load_prices() -> pd.DataFrame:
-    """Load and canonicalize all CSVs in memory."""
 
     files = list(RAW_DATA_DIR.glob("*.csv"))
     if not files:
@@ -114,7 +103,7 @@ def load_prices() -> pd.DataFrame:
         close = _extract_close(df)
 
         if date is None or close is None:
-            print(f"⚠ Skipping {f.name} → cannot parse date/close")
+            print(f"⚠ Skipping {f.name}")
             continue
 
         cleaned = pd.DataFrame({
@@ -139,10 +128,11 @@ def load_prices() -> pd.DataFrame:
 
 
 # ============================================================
-# FEATURE ENGINEERING
+# FEATURES
 # ============================================================
 
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
+
     returns = df.groupby("ticker")["close"].pct_change()
 
     df["ret_5d"] = df.groupby("ticker")["close"].pct_change(5)
@@ -160,10 +150,11 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ============================================================
-# RULE-BASED ALPHA MODEL
+# ALPHA
 # ============================================================
 
 def compute_alpha(df: pd.DataFrame) -> pd.DataFrame:
+
     momentum = 0.6 * df["ret_60d"] + 0.4 * df["ret_20d"]
     mean_rev = -df["ret_5d"] / df["vol_20d"]
 
@@ -176,16 +167,14 @@ def compute_alpha(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ============================================================
-# PORTFOLIO BACKTEST
+# BACKTEST
 # ============================================================
 
 def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
 
+    # FIXED: correct weekly date generation
     weekly_dates = (
-        df["date"]
-        .drop_duplicates()
-        .sort_values()
-        .to_series()
+        pd.Series(df["date"].sort_values().unique())
         .dt.to_period("W-FRI")
         .drop_duplicates()
         .dt.end_time
@@ -216,10 +205,8 @@ def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
             for t in set(new_weights) | set(current_weights)
         )
 
-        # apply institutional cost
         equity -= equity * turnover * TOTAL_COST
 
-        # approximate weekly return
         weekly_ret = selected["ret_5d"].mean()
         equity *= (1 + weekly_ret)
 
@@ -230,7 +217,7 @@ def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ============================================================
-# SAVE OUTPUTS + CHECKSUM
+# SAVE
 # ============================================================
 
 def save_outputs(equity_curve: pd.DataFrame):
@@ -245,7 +232,7 @@ def save_outputs(equity_curve: pd.DataFrame):
 
 
 # ============================================================
-# MAIN EXECUTION
+# MAIN
 # ============================================================
 
 def main():
@@ -264,7 +251,7 @@ def main():
 
     equity_curve = run_backtest(df)
 
-    if equity_curve is None or equity_curve.empty:
+    if equity_curve.empty:
         raise RuntimeError("❌ Backtest produced empty equity curve.")
 
     save_outputs(equity_curve)
