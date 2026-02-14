@@ -84,3 +84,6 @@ jobs:
         with:
           name: ai-pms-phase3-outputs
           path: ai-pms/data/output/
+          
+- name: Run Historical Data Engine
+  run: python backtest/engines/data_engine.py
