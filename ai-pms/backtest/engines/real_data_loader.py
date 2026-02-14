@@ -1,9 +1,8 @@
 """
 REAL NSE Historical Loader — Institutional Grade
-Handles: One CSV per stock (Option A)
+Supports partial universe (e.g., 240 of NIFTY 300)
 
-Output:
-    data/processed/nse_2010_2024.parquet
+Builds permanent parquet spine for Phase-5 backtests.
 """
 
 from pathlib import Path
@@ -25,8 +24,10 @@ REQUIRED_COLUMNS = {
 }
 
 
+# ------------------------------------------------------------
+# Column standardization
+# ------------------------------------------------------------
 def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Map various column name styles to standard schema."""
     col_map = {}
 
     for std_col, variants in REQUIRED_COLUMNS.items():
@@ -44,11 +45,13 @@ def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df[["date", "open", "high", "low", "close", "volume"]]
 
 
+# ------------------------------------------------------------
+# Load one CSV
+# ------------------------------------------------------------
 def load_single_csv(path: Path) -> pd.DataFrame:
-    """Load one stock CSV and attach symbol."""
     symbol = path.stem.upper()
 
-    df = pd.read_csv(path)
+    df = pd.read_csv(path, low_memory=False)
 
     df = standardize_columns(df)
 
@@ -61,8 +64,10 @@ def load_single_csv(path: Path) -> pd.DataFrame:
     return df
 
 
+# ------------------------------------------------------------
+# Load all CSVs
+# ------------------------------------------------------------
 def load_all_data() -> pd.DataFrame:
-    """Load and combine all stock CSVs."""
     if not RAW_DIR.exists():
         raise FileNotFoundError("❌ data/raw folder not found")
 
@@ -71,7 +76,7 @@ def load_all_data() -> pd.DataFrame:
     if not files:
         raise FileNotFoundError("❌ No CSV files found in data/raw")
 
-    print(f"📂 Found {len(files)} stock files")
+    print(f"📂 Found {len(files)} stock files\n")
 
     dfs = []
 
@@ -91,23 +96,50 @@ def load_all_data() -> pd.DataFrame:
     return df
 
 
+# ------------------------------------------------------------
+# Institutional sanity checks
+# ------------------------------------------------------------
+def validate_dataset(df: pd.DataFrame):
+    rows = len(df)
+    symbols = df["symbol"].nunique()
+    start = df["date"].min()
+    end = df["date"].max()
+
+    print("📊 DATA VALIDATION")
+    print(f"Rows     : {rows:,}")
+    print(f"Symbols  : {symbols}")
+    print(f"Date span: {start.date()} → {end.date()}\n")
+
+    if symbols < 150:
+        raise ValueError("❌ Too few symbols for institutional backtest")
+
+    if start.year > 2012:
+        raise ValueError("❌ History too short (<2012)")
+
+    if rows < 500_000:
+        raise ValueError("❌ Dataset too small for reliable CAGR")
+
+
+# ------------------------------------------------------------
+# Save parquet spine
+# ------------------------------------------------------------
 def save_parquet(df: pd.DataFrame):
-    """Save processed institutional dataset."""
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
     df.to_parquet(OUTPUT_FILE, index=False)
 
-    print("\n✅ REAL NSE DATA READY")
-    print(f"Rows     : {len(df):,}")
-    print(f"Symbols  : {df['symbol'].nunique()}")
-    print(f"Date span: {df['date'].min().date()} → {df['date'].max().date()}")
-    print(f"Saved to : {OUTPUT_FILE}\n")
+    print(f"✅ Saved institutional dataset → {OUTPUT_FILE}\n")
 
 
+# ------------------------------------------------------------
+# Main
+# ------------------------------------------------------------
 def main():
     print("🚀 Building REAL NSE Institutional Dataset...\n")
 
     df = load_all_data()
+
+    validate_dataset(df)
 
     save_parquet(df)
 
