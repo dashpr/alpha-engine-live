@@ -1,18 +1,11 @@
 """
-PHASE-5 INSTITUTIONAL BACKTEST
---------------------------------
-Runs full historical simulation on:
+PHASE-5 INSTITUTIONAL BACKTEST (ENGINE-COMPATIBLE)
+--------------------------------------------------
 
-• Nifty-300 universe (CSV based)
-• Real OHLCV data since 2010
-• Phase-3 Alpha → Portfolio → Metrics
-
-Outputs:
-→ CAGR
-→ Sharpe
-→ Max Drawdown
-→ Equity Curve
-→ Saved institutional metrics
+• Uses your EXISTING HistoricalDataEngine signature
+• No assumptions about constructor params
+• Runs full Alpha → Portfolio → Metrics pipeline
+• Production safe for GitHub Actions
 """
 
 import pandas as pd
@@ -24,16 +17,10 @@ from backtest.engines.portfolio_backtest_engine import PortfolioBacktestEngine
 
 
 # ============================================================
-# CONFIG
+# OUTPUT PATH
 # ============================================================
 
-START_DATE = "2010-01-01"
-END_DATE = "2026-12-31"
-
-UNIVERSE_NAME = "NIFTY_300"
-
-DATA_FOLDER = Path("data/raw/nse/")
-OUTPUT_FOLDER = Path("data/output/phase5/")
+OUTPUT_FOLDER = Path("data/output/phase5")
 OUTPUT_FOLDER.mkdir(parents=True, exist_ok=True)
 
 
@@ -42,42 +29,49 @@ OUTPUT_FOLDER.mkdir(parents=True, exist_ok=True)
 # ============================================================
 
 def load_data() -> pd.DataFrame:
-    """Load real NSE historical data."""
+    """
+    Load data using EXISTING HistoricalDataEngine
+    without passing unsupported arguments.
+    """
 
-    engine = HistoricalDataEngine(
-        data_folder=DATA_FOLDER,
-        start_date=START_DATE,
-        end_date=END_DATE,
-    )
+    engine = HistoricalDataEngine()  # ← critical fix
 
     df = engine.run()
 
     print("\n📊 Historical Data Loaded")
     print(f"Rows     : {len(df):,}")
-    print(f"Symbols  : {df['symbol'].nunique()}")
-    print(f"Date span: {df['date'].min()} → {df['date'].max()}")
+    print(f"Symbols  : {df['symbol'].nunique() if not df.empty else 0}")
+    print(
+        f"Date span: {df['date'].min() if not df.empty else 'NA'} → "
+        f"{df['date'].max() if not df.empty else 'NA'}"
+    )
+
+    if df.empty:
+        raise ValueError("❌ Historical dataframe is empty")
 
     return df
 
 
 # ============================================================
-# STEP 2 — RUN ALPHA ENGINE
+# STEP 2 — RUN ALPHA BACKTEST
 # ============================================================
 
 def run_alpha(df: pd.DataFrame) -> pd.DataFrame:
-    """Generate alpha portfolio from historical prices."""
+    """
+    Generate alpha portfolio.
+    Uses ONLY parameters supported by your engine.
+    """
 
-    engine = AlphaBacktestEngine(
-        top_n=20,
-        rebalance_days=5,      # weekly rebalance
-        min_history_days=60,
-    )
+    engine = AlphaBacktestEngine()
 
     alpha_df = engine.run(df)
 
     print("\n📈 Alpha Portfolio Generated")
     print(f"Rows : {len(alpha_df):,}")
     print(f"Dates: {alpha_df['date'].nunique()}")
+
+    if alpha_df.empty:
+        raise ValueError("❌ Alpha dataframe is empty")
 
     return alpha_df
 
@@ -87,20 +81,18 @@ def run_alpha(df: pd.DataFrame) -> pd.DataFrame:
 # ============================================================
 
 def run_portfolio(alpha_df: pd.DataFrame) -> dict:
-    """Convert alpha weights into equity curve & metrics."""
+    """
+    Convert alpha weights → equity curve → institutional metrics.
+    """
 
-    engine = PortfolioBacktestEngine(
-        initial_capital=100_000,
-        transaction_cost_bps=10,
-        slippage_bps=5,
-    )
+    engine = PortfolioBacktestEngine()
 
     metrics = engine.run(alpha_df)
 
     print("\n💰 Portfolio Backtest Complete")
-    print(f"CAGR        : {metrics['cagr']:.2%}")
-    print(f"Sharpe      : {metrics['sharpe']:.2f}")
-    print(f"Max Drawdown: {metrics['max_drawdown']:.2%}")
+    print(f"CAGR        : {metrics.get('cagr', 0):.2%}")
+    print(f"Sharpe      : {metrics.get('sharpe', 0):.2f}")
+    print(f"Max Drawdown: {metrics.get('max_drawdown', 0):.2%}")
 
     return metrics
 
@@ -124,7 +116,7 @@ def save_results(metrics: dict):
 # ============================================================
 
 def main():
-    print("\n🚀 Phase-5 Institutional Backtest Started (2010–2024)")
+    print("\n🚀 Phase-5 Institutional Backtest Started")
 
     df = load_data()
     alpha_df = run_alpha(df)
