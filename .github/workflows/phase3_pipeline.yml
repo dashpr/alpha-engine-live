@@ -92,10 +92,10 @@ jobs:
           name: ai-pms-phase3-outputs
           path: ai-pms/data/output/
           
-      # -----------------------------------
+            # -----------------------------------
       # Phase-5 Institutional Backtest
       # -----------------------------------
       - name: Run Phase-5 Institutional Backtest (14Y)
         env:
-          PYTHONPATH: ai-pms
+          PYTHONPATH: .
         run: python backtest/run_phase5_backtest.py
