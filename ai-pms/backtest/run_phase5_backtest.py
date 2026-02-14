@@ -1,35 +1,32 @@
 """
 AI-PMS — PHASE-5 FROZEN INSTITUTIONAL BACKTEST
-Single-file engine (monorepo-native, CI safe)
-
-Key guarantees:
-- Uses ONLY raw CSV price data
-- No ML, no artefacts, no external dependencies
-- Deterministic weekly portfolio backtest
-- Institutional transaction costs included
-- Produces reproducible equity curve + checksum
+Monorepo-native • Deterministic • CI-safe • Final
 """
 
 import hashlib
 from pathlib import Path
 import pandas as pd
-import numpy as np
 
 
 # ============================================================
 # CONFIGURATION (FROZEN)
 # ============================================================
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+CURRENT_FILE = Path(__file__).resolve()
 
-RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
-OUTPUT_DIR = PROJECT_ROOT / "data" / "output" / "phase5"
+# repo root
+REPO_ROOT = CURRENT_FILE.parents[2]
+
+# ai-pms root (monorepo scoped)
+AIPMS_ROOT = REPO_ROOT / "ai-pms"
+
+RAW_DATA_DIR = AIPMS_ROOT / "data" / "raw"
+OUTPUT_DIR = AIPMS_ROOT / "data" / "output" / "phase5"
 
 START_DATE = "2010-01-01"
 PORTFOLIO_SIZE = 15
 INITIAL_CAPITAL = 1.0
 
-# Institutional cost model
 BROKERAGE = 0.001
 SLIPPAGE = 0.001
 IMPACT = 0.0005
@@ -37,7 +34,7 @@ TOTAL_COST = BROKERAGE + SLIPPAGE + IMPACT
 
 
 # ============================================================
-# STEP-1: LOAD RAW PRICE DATA (BRONZE ONLY)
+# STEP-1: LOAD RAW PRICE DATA
 # ============================================================
 
 REQUIRED_COLUMNS = {"date", "ticker", "close"}
@@ -45,8 +42,11 @@ REQUIRED_COLUMNS = {"date", "ticker", "close"}
 
 def load_prices() -> pd.DataFrame:
     files = list(RAW_DATA_DIR.glob("*.csv"))
+
     if not files:
-        raise RuntimeError("❌ No CSV files found in data/raw")
+        raise RuntimeError(
+            f"❌ No CSV files found in expected path:\n{RAW_DATA_DIR}"
+        )
 
     frames = []
     for f in files:
@@ -55,8 +55,7 @@ def load_prices() -> pd.DataFrame:
         if not REQUIRED_COLUMNS.issubset(df.columns):
             raise RuntimeError(f"❌ Schema violation in {f.name}")
 
-        df = df[["date", "ticker", "close"]].copy()
-        frames.append(df)
+        frames.append(df[["date", "ticker", "close"]])
 
     df = pd.concat(frames, ignore_index=True)
 
@@ -67,7 +66,7 @@ def load_prices() -> pd.DataFrame:
 
 
 # ============================================================
-# STEP-2: DETERMINISTIC FEATURE FACTORY
+# STEP-2: FEATURES
 # ============================================================
 
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -88,7 +87,7 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ============================================================
-# STEP-3: RULE-BASED ALPHA (NO ML)
+# STEP-3: RULE-BASED ALPHA
 # ============================================================
 
 def compute_alpha(df: pd.DataFrame) -> pd.DataFrame:
@@ -104,7 +103,7 @@ def compute_alpha(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ============================================================
-# STEP-4: WEEKLY PORTFOLIO BACKTEST WITH COSTS
+# STEP-4: WEEKLY BACKTEST
 # ============================================================
 
 def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
@@ -137,16 +136,13 @@ def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
         target_weight = 1.0 / PORTFOLIO_SIZE
         new_weights = {t: target_weight for t in selected["ticker"]}
 
-        # Turnover
         turnover = sum(
             abs(new_weights.get(t, 0) - current_weights.get(t, 0))
             for t in set(new_weights) | set(current_weights)
         )
 
-        # Transaction cost
         equity -= equity * turnover * TOTAL_COST
 
-        # Weekly return approximation via 5-day return
         weekly_ret = selected["ret_5d"].mean()
         equity *= (1 + weekly_ret)
 
@@ -157,7 +153,7 @@ def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ============================================================
-# STEP-5: SAVE OUTPUTS + CHECKSUM (GOVERNANCE LOCK)
+# STEP-5: SAVE OUTPUTS
 # ============================================================
 
 def save_outputs(equity_curve: pd.DataFrame):
@@ -171,7 +167,7 @@ def save_outputs(equity_curve: pd.DataFrame):
 
 
 # ============================================================
-# MAIN EXECUTION
+# MAIN
 # ============================================================
 
 def main():
