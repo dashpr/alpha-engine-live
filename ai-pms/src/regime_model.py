@@ -1,6 +1,8 @@
 """
-FINAL Regime Detection Model
-Numerically stable + backward compatible with Phase-3
+FINAL Regime Detection Model — Production Safe
+• Handles HMM numerical failures
+• Deterministic fallback
+• Phase-3 backward compatible
 """
 
 from __future__ import annotations
@@ -26,15 +28,15 @@ class RegimeDetector:
         X = X.replace([np.inf, -np.inf], np.nan).dropna()
 
         if len(X) < 50:
-            raise ValueError("Not enough data for regime detection")
+            raise ValueError("Not enough data")
 
-        # tiny noise → numerical stability
+        # tiny noise for stability
         X = X + np.random.normal(0, 1e-6, size=X.shape)
 
         return X.values
 
     # --------------------------------------------------
-    # FIT
+    # FIT (Fail-safe)
     # --------------------------------------------------
 
     def fit(self, df: pd.DataFrame) -> None:
@@ -50,15 +52,19 @@ class RegimeDetector:
 
             model.fit(X)
 
-            # validate probabilities
-            if not np.isfinite(model.startprob_).all():
-                raise ValueError("Invalid HMM probabilities")
+            # Validate probabilities & covariance
+            if (
+                not np.isfinite(model.startprob_).all()
+                or np.isnan(model.transmat_).any()
+                or np.isnan(model.covars_).any()
+            ):
+                raise ValueError("Invalid trained HMM")
 
             self.model = model
             self.fallback_mode = False
 
         except Exception:
-            # fallback → deterministic regime
+            # ⭐ Institutional fail-safe
             self.model = None
             self.fallback_mode = True
 
@@ -70,8 +76,11 @@ class RegimeDetector:
         if self.fallback_mode or self.model is None:
             return self._fallback_probabilities(df)
 
-        X = self._prepare_X(df)
-        probs = self.model.predict_proba(X)
+        try:
+            X = self._prepare_X(df)
+            probs = self.model.predict_proba(X)
+        except Exception:
+            return self._fallback_probabilities(df)
 
         out = df.loc[df.index[-len(probs):], ["date"]].copy()
 
@@ -81,15 +90,10 @@ class RegimeDetector:
         return out.reset_index(drop=True)
 
     # --------------------------------------------------
-    # WEEKLY CONFIRMED REGIME  ⭐ (Phase-3 compatibility)
+    # WEEKLY CONFIRMED REGIME (Phase-3 compatibility)
     # --------------------------------------------------
 
     def weekly_confirmed_regime(self, daily_probs: pd.DataFrame) -> pd.DataFrame:
-        """
-        Converts daily regime probabilities → weekly confirmed regime.
-        Keeps Phase-3 pipeline working.
-        """
-
         df = daily_probs.copy()
         df["week"] = pd.to_datetime(df["date"]).dt.to_period("W").apply(lambda r: r.start_time)
 
@@ -105,7 +109,7 @@ class RegimeDetector:
         return weekly
 
     # --------------------------------------------------
-    # FALLBACK REGIME
+    # DETERMINISTIC FALLBACK
     # --------------------------------------------------
 
     def _fallback_probabilities(self, df: pd.DataFrame) -> pd.DataFrame:
