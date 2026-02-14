@@ -1,0 +1,83 @@
+"""
+        return df
+
+    # ---------------- FEATURE BUILD ----------------
+
+    def _build_basic_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Minimal deterministic features for walk-forward realism."""
+
+        df = df.copy()
+
+        df["ret_1d"] = df.groupby("symbol")["close"].pct_change()
+        df["ret_5d"] = df.groupby("symbol")["close"].pct_change(5)
+        df["ret_20d"] = df.groupby("symbol")["close"].pct_change(20)
+
+        df["vol_20d"] = (
+            df.groupby("symbol")["ret_1d"]
+            .rolling(20)
+            .std()
+            .reset_index(level=0, drop=True)
+        )
+
+        df = df.dropna().reset_index(drop=True)
+        return df
+
+    # ---------------- WALK-FORWARD LOOP ----------------
+
+    def _walkforward_loop(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Core rolling training simulation."""
+
+        all_predictions = []
+
+        unique_dates = pd.Series(df["date"].unique()).sort_values()
+        rebalance_dates = unique_dates.dt.to_period("W-WED").drop_duplicates().dt.to_timestamp()
+
+        for date in rebalance_dates:
+            train_start = date - pd.Timedelta(days=TRAIN_WINDOW_DAYS)
+
+            train_df = df[(df["date"] < date) & (df["date"] >= train_start)]
+            test_df = df[df["date"] == date]
+
+            if len(train_df) < 200 or len(test_df) == 0:
+                continue
+
+            # Simple cross-sectional momentum proxy (deterministic placeholder for ML)
+            alpha_scores = (
+                train_df.groupby("symbol")["ret_20d"].mean().rename("alpha_score")
+            )
+
+            preds = test_df[["date", "symbol"]].copy()
+            preds = preds.merge(alpha_scores, on="symbol", how="left")
+            preds["alpha_score"] = preds["alpha_score"].fillna(0.0)
+
+            all_predictions.append(preds)
+
+        if not all_predictions:
+            raise ValueError("Walk-forward produced no predictions.")
+
+        return pd.concat(all_predictions, ignore_index=True)
+
+    # ---------------- SAVE ----------------
+
+    def _save(self, df: pd.DataFrame) -> None:
+        OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+        df.to_parquet(OUTPUT_PATH, index=False)
+        print(f"✓ walkforward_predictions.parquet created → {OUTPUT_PATH}")
+
+
+# --------------------------------------------------
+# CLI ENTRY
+# --------------------------------------------------
+
+
+def main():
+    engine = WalkForwardEngine()
+    preds = engine.run()
+
+    print("Rows:", len(preds))
+    print("Dates:", preds["date"].min(), "→", preds["date"].max())
+    print("Symbols:", preds["symbol"].nunique())
+
+
+if __name__ == "__main__":
+    main()
