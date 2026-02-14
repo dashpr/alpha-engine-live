@@ -1,8 +1,3 @@
-"""
-Phase-5 Institutional Backtest Comparator
-14-Year realistic PMS simulation with real costs
-"""
-
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -12,35 +7,21 @@ from backtest.engines.alpha_backtest_engine import AlphaBacktestEngine
 from backtest.engines.portfolio_backtest_engine import PortfolioBacktestEngine
 
 
-# ============================================================
-# CONFIG (institutional locked)
-# ============================================================
-
-START_DATE = "2010-01-01"
-END_DATE = "2026-02-15"
-
-REBAlANCE_DAYS = 5          # weekly
-TOP_N = 20                  # portfolio size
-
-BROKERAGE = 0.0015          # 0.15% round trip
-SLIPPAGE = 0.0005           # 0.05%
-CASH_DRAG = 0.05            # 5% idle
-
-
 DATA_FOLDER = "data/raw"
+START_YEAR = 2010
+END_YEAR = 2026
+
+MODELS = ["momentum", "mean_reversion", "ml_factor"]
 
 
-# ============================================================
-# LOAD HISTORICAL DATA
-# ============================================================
-
-def load_data() -> pd.DataFrame:
+# =========================================================
+# Load historical data
+# =========================================================
+def load_data():
     print("📊 Loading historical data...")
 
-    engine = HistoricalDataEngine(data_folder=DATA_FOLDER)
+    engine = HistoricalDataEngine()
     df = engine.run()
-
-    df = df[(df["date"] >= START_DATE) & (df["date"] <= END_DATE)]
 
     print("\n📊 Historical Data Loaded")
     print(f"Rows     : {len(df):,}")
@@ -50,100 +31,102 @@ def load_data() -> pd.DataFrame:
     return df
 
 
-# ============================================================
-# RUN ONE ALPHA MODEL
-# ============================================================
-
-def run_alpha_model(df: pd.DataFrame, model_name: str) -> pd.DataFrame:
+# =========================================================
+# Run alpha model
+# =========================================================
+def run_alpha_model(df, model_name):
     print(f"\n🧠 Running Alpha Model → {model_name}")
 
-    engine = AlphaBacktestEngine(
-        model_name=model_name,
-        rebalance_days=REBAlANCE_DAYS,
-        top_n=TOP_N,
-    )
-
+    engine = AlphaBacktestEngine(model_name=model_name)
     alpha_df = engine.run(df)
 
     print(f"📈 Alpha rows: {len(alpha_df):,}")
+
     return alpha_df
 
 
-# ============================================================
-# RUN PORTFOLIO SIMULATION WITH COSTS
-# ============================================================
-
-def run_portfolio(alpha_df: pd.DataFrame, model_name: str) -> dict:
+# =========================================================
+# Portfolio simulation
+# =========================================================
+def run_portfolio(alpha_df, model_name):
     print(f"💼 Portfolio simulation → {model_name}")
 
-    engine = PortfolioBacktestEngine(
-        brokerage=BROKERAGE,
-        slippage=SLIPPAGE,
-        cash_drag=CASH_DRAG,
-    )
+    engine = PortfolioBacktestEngine()
+    equity_curve = engine.run(alpha_df)
 
-    metrics = engine.run(alpha_df)
-
-    return metrics
+    return equity_curve
 
 
-# ============================================================
-# MAIN PHASE-5 COMPARATOR
-# ============================================================
+# =========================================================
+# Institutional metrics
+# =========================================================
+def compute_metrics(equity_curve: pd.DataFrame):
+    """
+    equity_curve must contain:
+    date | equity
+    """
 
+    returns = equity_curve["equity"].pct_change().dropna()
+
+    years = len(equity_curve) / 252
+
+    cagr = (equity_curve["equity"].iloc[-1] / equity_curve["equity"].iloc[0]) ** (1 / years) - 1
+    vol = returns.std() * np.sqrt(252)
+    sharpe = cagr / vol if vol != 0 else 0
+
+    running_max = equity_curve["equity"].cummax()
+    drawdown = equity_curve["equity"] / running_max - 1
+    max_dd = drawdown.min()
+
+    return {
+        "cagr": cagr,
+        "volatility": vol,
+        "sharpe": sharpe,
+        "max_drawdown": max_dd,
+    }
+
+
+# =========================================================
+# MAIN PHASE-5 RUNNER
+# =========================================================
 def main():
     print("🚀 Phase-5 Institutional Backtest Started (2010–2026)")
 
     df = load_data()
 
-    # --------------------------------------------------------
-    # Alpha models to compare
-    # --------------------------------------------------------
-    models = [
-        "momentum",
-        "mean_reversion",
-        "ml_factor",
-    ]
-
     results = []
 
-    for model in models:
+    for model in MODELS:
         alpha_df = run_alpha_model(df, model)
-        metrics = run_portfolio(alpha_df, model)
+        equity_curve = run_portfolio(alpha_df, model)
 
+        metrics = compute_metrics(equity_curve)
         metrics["model"] = model
+
         results.append(metrics)
 
+    # -----------------------------------------------------
+    # Results comparison
+    # -----------------------------------------------------
     results_df = pd.DataFrame(results)
 
-    # --------------------------------------------------------
-    # CIO decision logic
-    # --------------------------------------------------------
+    print("\n📊 Phase-5 Backtest Results")
+    print(results_df.round(4))
+
+    # -----------------------------------------------------
+    # Select best model
+    # -----------------------------------------------------
     best_model = results_df.sort_values("cagr", ascending=False).iloc[0]["model"]
 
-    results_df["verdict"] = "REJECTED"
-    results_df.loc[results_df["model"] == best_model, "verdict"] = "CORE PMS"
+    print(f"\n🏆 BEST MODEL → {best_model}")
 
-    # second best = satellite
-    if len(results_df) > 1:
-        second = results_df.sort_values("cagr", ascending=False).iloc[1]["model"]
-        results_df.loc[results_df["model"] == second, "verdict"] = "SATELLITE"
+    # Save results
+    Path("data/output").mkdir(parents=True, exist_ok=True)
+    results_df.to_csv("data/output/phase5_model_comparison.csv", index=False)
 
-    # --------------------------------------------------------
-    # Save outputs
-    # --------------------------------------------------------
-    out_dir = Path("data/output/phase5")
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    results_df.to_csv(out_dir / "phase5_comparison.csv", index=False)
-
-    print("\n🏆 PHASE-5 FINAL RESULTS")
-    print(results_df.sort_values("cagr", ascending=False).to_string(index=False))
-
-    print("\n📁 Saved → data/output/phase5/phase5_comparison.csv")
+    print("\n✅ Phase-5 Completed Successfully")
 
 
-# ============================================================
-
+# =========================================================
 if __name__ == "__main__":
     main()
