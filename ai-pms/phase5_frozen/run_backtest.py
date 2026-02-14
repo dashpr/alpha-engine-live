@@ -1,29 +1,56 @@
 """
 FINAL PHASE-5 ENTRYPOINT
 Works with hyphen folder names (ai-pms)
-No package import required.
-Permanent production design.
+No invalid imports
+CI/CD safe
+Permanent solution
 """
 
 import sys
 from pathlib import Path
+import importlib.util
+
 
 # -------------------------------------------------
-# BOOTSTRAP PROJECT ROOT INTO PYTHON PATH (ONCE)
+# Resolve project paths
 # -------------------------------------------------
 CURRENT_FILE = Path(__file__).resolve()
-PROJECT_ROOT = CURRENT_FILE.parents[2]  # repo root
+PHASE_DIR = CURRENT_FILE.parent
+PROJECT_ROOT = PHASE_DIR.parent.parent
 
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 # -------------------------------------------------
-# NOW SAFE TO IMPORT INTERNAL MODULES
+# Helper to load module from file path
 # -------------------------------------------------
-from ai-pms.phase5_frozen.backtest import run_backtest  # type: ignore
-from ai-pms.phase5_frozen.governance import save_outputs  # type: ignore
+def load_module(module_name: str, file_path: Path):
+    spec = importlib.util.spec_from_file_location(module_name, file_path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
 
 
+# -------------------------------------------------
+# Load required internal modules explicitly
+# -------------------------------------------------
+backtest_module = load_module(
+    "phase5_backtest",
+    PHASE_DIR / "backtest.py",
+)
+
+governance_module = load_module(
+    "phase5_governance",
+    PHASE_DIR / "governance.py",
+)
+
+
+run_backtest = backtest_module.run_backtest
+save_outputs = governance_module.save_outputs
+
+
+# -------------------------------------------------
+# Main execution
+# -------------------------------------------------
 def main():
     equity_curve = run_backtest()
     save_outputs(equity_curve)
