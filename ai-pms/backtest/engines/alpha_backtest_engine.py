@@ -1,118 +1,105 @@
-"""
-Alpha Backtest Engine — Phase-5 Institutional (FINAL STABLE)
-
-✔ Supports:
-    - rebalance_days = 5
-    - rebalance = "weekly" / "monthly"
-✔ Backward compatible with all earlier runners
-✔ Safe against empty data
-"""
-
-from typing import Optional
 import pandas as pd
 
 
 class AlphaBacktestEngine:
-    def __init__(
-        self,
-        top_n: int = 20,
-        rebalance_days: Optional[int] = None,
-        rebalance: Optional[object] = None,
-    ):
-        """
-        Parameters
-        ----------
-        top_n : number of stocks in portfolio
+    """
+    Institutional Alpha Construction Engine
+    ---------------------------------------
+    Outputs tradable portfolio frame with:
 
-        rebalance_days : numeric rebalance frequency
+        date
+        symbol
+        weight
+        ret   (forward return until next rebalance)
 
-        rebalance :
-            can be:
-                - int
-                - "weekly"
-                - "monthly"
-        """
+    Weekly rebalance baseline.
+    """
 
-        # -------------------------------------------------
-        # UNIVERSAL REBALANCE INTERPRETER  ⭐ FINAL FIX
-        # -------------------------------------------------
+    def __init__(self, top_n: int = 20, rebalance_days: int = 5):
+        self.top_n = top_n
+        self.rebalance_days = rebalance_days
 
-        if rebalance_days is None:
-
-            if isinstance(rebalance, int):
-                rebalance_days = rebalance
-
-            elif isinstance(rebalance, str):
-                r = rebalance.lower()
-
-                if r == "weekly":
-                    rebalance_days = 5
-                elif r == "monthly":
-                    rebalance_days = 21
-                else:
-                    raise ValueError(f"Unknown rebalance value: {rebalance}")
-
-            else:
-                rebalance_days = 5  # default weekly
-
-        self.top_n = int(top_n)
-        self.rebalance_days = int(rebalance_days)
-
-    # -----------------------------------------------------
-
+    # ---------------------------------------------------------
+    # Create simple momentum alpha
+    # ---------------------------------------------------------
     def _create_simple_alpha(self, df: pd.DataFrame) -> pd.DataFrame:
-        """20-day momentum alpha."""
+        df = df.sort_values(["symbol", "date"]).copy()
 
-        df = df.copy()
+        # ensure numeric close
+        df["close"] = pd.to_numeric(df["close"], errors="coerce")
 
-        df["ret_20"] = (
+        # 20-day momentum
+        df["mom_20"] = (
             df.groupby("symbol")["close"]
             .pct_change(20)
         )
 
         return df
 
-    # -----------------------------------------------------
-
+    # ---------------------------------------------------------
+    # Select weekly top-N portfolio
+    # ---------------------------------------------------------
     def _select_portfolio(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Select top-N stocks on rebalance dates."""
+        # weekly rebalance dates
+        rebalance_dates = (
+            df["date"]
+            .drop_duplicates()
+            .sort_values()
+            .iloc[:: self.rebalance_days]
+        )
 
-        df = df.dropna(subset=["ret_20"])
+        portfolio_rows = []
 
-        if df.empty:
-            raise ValueError("Alpha dataframe empty after feature creation")
+        for dt in rebalance_dates:
+            snap = df[df["date"] == dt].dropna(subset=["mom_20"])
 
-        unique_dates = sorted(df["date"].unique())
-        rebalance_dates = unique_dates[:: self.rebalance_days]
+            if snap.empty:
+                continue
 
-        portfolios = []
+            top = snap.nlargest(self.top_n, "mom_20").copy()
 
-        for d in rebalance_dates:
-            day_df = df[df["date"] == d]
+            # equal weight
+            top["weight"] = 1.0 / len(top)
 
-            top = (
-                day_df.sort_values("ret_20", ascending=False)
-                .head(self.top_n)
-                .assign(weight=1 / self.top_n)
-            )
+            portfolio_rows.append(top[["date", "symbol", "weight"]])
 
-            portfolios.append(top)
+        return pd.concat(portfolio_rows, ignore_index=True)
 
-        return pd.concat(portfolios, ignore_index=True)
+    # ---------------------------------------------------------
+    # Compute forward returns
+    # ---------------------------------------------------------
+    def _add_forward_returns(self, df: pd.DataFrame, portfolio: pd.DataFrame) -> pd.DataFrame:
+        df = df.sort_values(["symbol", "date"])
 
-    # -----------------------------------------------------
+        # forward return over rebalance window
+        df["fwd_ret"] = (
+            df.groupby("symbol")["close"]
+            .shift(-self.rebalance_days)
+            / df["close"]
+            - 1
+        )
 
+        merged = portfolio.merge(
+            df[["date", "symbol", "fwd_ret"]],
+            on=["date", "symbol"],
+            how="left",
+        )
+
+        merged = merged.rename(columns={"fwd_ret": "ret"})
+
+        return merged.dropna(subset=["ret"])
+
+    # ---------------------------------------------------------
+    # PUBLIC RUN
+    # ---------------------------------------------------------
     def run(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Main execution."""
-
         if df.empty:
             raise ValueError("Historical dataframe is empty")
 
         df = self._create_simple_alpha(df)
+
         portfolio = self._select_portfolio(df)
 
-        print("\n📈 Alpha Portfolio Generated")
-        print(f"Rows : {len(portfolio):,}")
-        print(f"Dates: {portfolio['date'].nunique()}")
+        portfolio = self._add_forward_returns(df, portfolio)
 
         return portfolio
