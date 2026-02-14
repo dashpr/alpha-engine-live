@@ -1,133 +1,71 @@
-"""
-Historical Data Engine — Phase-5 Institutional Backtest
-Loads NSE historical dataset and prepares clean institutional dataframe.
-"""
-
 import os
-from typing import List, Optional
-
 import pandas as pd
-
-
-RAW_DATA_PATH = "data/raw/nse_prices.csv"
+from typing import List
 
 
 class HistoricalDataEngine:
-    def __init__(
-        self,
-        universe: Optional[List[str]] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-    ):
-        """
-        Parameters
-        ----------
-        universe : list[str] | str | None
-            Symbols to include.
-            • None → all symbols
-            • str  → converted to single-item list
+    """
+    Institutional Historical Data Loader
+    Reads ALL CSV files from data/raw and merges into one dataframe.
+    """
 
-        start_date : str | None
-            Filter start date (YYYY-MM-DD)
-
-        end_date : str | None
-            Filter end date (YYYY-MM-DD)
-        """
-
-        # --- normalize universe ---
-        if isinstance(universe, str):
-            universe = [universe]
-
-        self.universe = universe
-        self.start_date = pd.to_datetime(start_date) if start_date else None
-        self.end_date = pd.to_datetime(end_date) if end_date else None
+    def __init__(self, data_path: str = "data/raw"):
+        self.data_path = data_path
 
     # -----------------------------------------------------
-
+    # Load all symbol CSVs
+    # -----------------------------------------------------
     def _load_data(self) -> pd.DataFrame:
-        """Load institutional NSE dataset."""
+        if not os.path.exists(self.data_path):
+            raise FileNotFoundError(f"{self.data_path} folder not found")
 
-        if not os.path.exists(RAW_DATA_PATH):
-            raise FileNotFoundError("data/raw/nse_prices.csv not found")
+        files: List[str] = [
+            f for f in os.listdir(self.data_path) if f.endswith(".csv")
+        ]
 
-        df = pd.read_csv(
-            RAW_DATA_PATH,
-            parse_dates=["date"],
-            low_memory=False,
-        )
+        if len(files) == 0:
+            raise FileNotFoundError("No CSV files found in data/raw")
 
-        return df
+        dfs = []
 
-    # -----------------------------------------------------
+        for file in files:
+            symbol = file.replace(".csv", "").upper()
+            path = os.path.join(self.data_path, file)
 
-    def _apply_filters(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Apply universe and date filters."""
+            df = pd.read_csv(path)
 
-        # --- universe filter ---
-        if self.universe is not None:
-            if not isinstance(self.universe, list):
-                raise TypeError("Universe must be list of symbols")
-            df = df[df["symbol"].isin(self.universe)]
+            # --- Standardize column names ---
+            df.columns = [c.lower().strip() for c in df.columns]
 
-        # --- start date ---
-        if self.start_date is not None:
-            df = df[df["date"] >= self.start_date]
+            # Expect at least date + close
+            if "date" not in df.columns:
+                df.rename(columns={df.columns[0]: "date"}, inplace=True)
 
-        # --- end date ---
-        if self.end_date is not None:
-            df = df[df["date"] <= self.end_date]
+            if "close" not in df.columns and "adj close" in df.columns:
+                df.rename(columns={"adj close": "close"}, inplace=True)
 
-        return df
+            # Keep only required columns
+            keep_cols = [c for c in ["date", "open", "high", "low", "close", "volume"] if c in df.columns]
+            df = df[keep_cols].copy()
 
-    # -----------------------------------------------------
+            df["symbol"] = symbol
+            df["date"] = pd.to_datetime(df["date"], errors="coerce")
 
-    def _final_clean(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Final institutional cleaning."""
+            dfs.append(df)
 
-        df = df.sort_values(["symbol", "date"]).reset_index(drop=True)
+        merged = pd.concat(dfs, ignore_index=True)
 
-        numeric_cols = ["open", "high", "low", "close", "adj_close", "volume"]
-
-        for col in numeric_cols:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce")
-
-        df = df.dropna(subset=["close"])
-
-        return df
+        return merged
 
     # -----------------------------------------------------
-
+    # Public run method
+    # -----------------------------------------------------
     def run(self) -> pd.DataFrame:
-        """Main execution."""
-
         df = self._load_data()
-        df = self._apply_filters(df)
-        df = self._final_clean(df)
 
         print("\n📊 Historical Data Loaded")
         print(f"Rows     : {len(df):,}")
         print(f"Symbols  : {df['symbol'].nunique()}")
-        print(
-            f"Date span: {df['date'].min().date()} → {df['date'].max().date()}"
-        )
+        print(f"Date span: {df['date'].min()} → {df['date'].max()}")
 
         return df
-
-
-# ---------------------------------------------------------
-# CLI
-# ---------------------------------------------------------
-
-def main():
-    print("\n🚀 Running Historical Data Engine\n")
-
-    engine = HistoricalDataEngine()
-    df = engine.run()
-
-    print("\n✅ Data ready for Phase-5 backtest\n")
-    print(df.head())
-
-
-if __name__ == "__main__":
-    main()
