@@ -1,19 +1,37 @@
 import os
 import pandas as pd
+from pathlib import Path
 
 
 class HistoricalDataEngine:
     """
     Institutional historical data loader.
-    Reads all CSVs from ai-pms/data/raw and produces a clean panel dataframe.
+    Auto-detects project root so it works in:
+    - Local machine
+    - GitHub Actions
+    - Docker / cloud
     """
 
-    def __init__(self, data_folder="ai-pms/data/raw"):
-        self.data_folder = data_folder
+    def __init__(self, data_folder: str | None = None):
+        """
+        If data_folder is None → auto-resolve:
+        project_root / data / raw
+        """
+
+        if data_folder is not None:
+            self.data_folder = Path(data_folder)
+        else:
+            # Detect project root dynamically
+            current = Path(__file__).resolve()
+
+            # backtest/engines/data_engine.py → ai-pms/
+            project_root = current.parents[2]
+
+            self.data_folder = project_root / "data" / "raw"
 
     # -----------------------------------------------------
     def _load_csvs(self) -> pd.DataFrame:
-        if not os.path.exists(self.data_folder):
+        if not self.data_folder.exists():
             raise FileNotFoundError(f"{self.data_folder} not found")
 
         frames = []
@@ -22,23 +40,24 @@ class HistoricalDataEngine:
             if not file.endswith(".csv"):
                 continue
 
-            path = os.path.join(self.data_folder, file)
+            path = self.data_folder / file
             df = pd.read_csv(path)
 
-            # ---- Standard column mapping ----
-            df.columns = [c.lower() for c in df.columns]
+            # ---- normalize column names ----
+            df.columns = [c.lower().strip() for c in df.columns]
 
             required = {"date", "open", "high", "low", "close", "volume"}
-            if not required.issubset(set(df.columns)):
+            if not required.issubset(df.columns):
                 raise ValueError(f"{file} missing required columns")
 
-            ticker = file.replace(".csv", "")
-            df["symbol"] = ticker
-
+            df["symbol"] = file.replace(".csv", "")
             df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
             df = df.dropna(subset=["date"])
 
-            frames.append(df[["date", "symbol", "open", "high", "low", "close", "volume"]])
+            frames.append(
+                df[["date", "symbol", "open", "high", "low", "close", "volume"]]
+            )
 
         if not frames:
             raise ValueError("No CSV files found in raw data folder")
@@ -49,7 +68,7 @@ class HistoricalDataEngine:
     def _compute_returns(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.sort_values(["symbol", "date"])
 
-        # next-day open return (execution realistic)
+        # next-day executable return
         df["ret_1d"] = (
             df.groupby("symbol")["open"]
             .shift(-1)
@@ -62,6 +81,7 @@ class HistoricalDataEngine:
     # -----------------------------------------------------
     def run(self) -> pd.DataFrame:
         print("📊 Loading historical data...")
+        print(f"📂 Using data folder → {self.data_folder}")
 
         df = self._load_csvs()
         df = self._compute_returns(df)
