@@ -1,14 +1,14 @@
 """
 AI-PMS — PHASE-5 FROZEN INSTITUTIONAL BACKTEST
-FINAL PRODUCTION VERSION (SINGLE FILE)
+FINAL STABLE PRODUCTION VERSION
 
-Key properties:
-• Uses ONLY raw CSV history (no ML, no artefacts)
-• Robust to messy NSE/Yahoo CSV formats
-• No file mutation, canonicalization in memory only
-• Deterministic weekly portfolio simulation
-• Institutional transaction costs included
-• Produces reproducible equity curve + checksum
+Properties:
+• Uses only raw CSV history
+• Robust to NSE/Yahoo CSV format variations
+• No preprocessing / normalization step
+• Deterministic weekly backtest
+• Institutional cost model
+• Reproducible equity + checksum
 """
 
 from pathlib import Path
@@ -17,7 +17,7 @@ import pandas as pd
 
 
 # ============================================================
-# PATH CONFIGURATION (MONOREPO SAFE)
+# PATHS
 # ============================================================
 
 CURRENT_FILE = Path(__file__).resolve()
@@ -29,7 +29,7 @@ OUTPUT_DIR = AIPMS_ROOT / "data" / "output" / "phase5"
 
 
 # ============================================================
-# BACKTEST CONFIG (FROZEN)
+# CONFIG (FROZEN)
 # ============================================================
 
 START_DATE = "2010-01-01"
@@ -43,13 +43,12 @@ TOTAL_COST = BROKERAGE + SLIPPAGE + IMPACT
 
 
 # ============================================================
-# UNIVERSAL CSV PARSING (NO NORMALIZATION STEP NEEDED)
+# UNIVERSAL CSV PARSING
 # ============================================================
 
 def _extract_date(df: pd.DataFrame):
-    """Find and parse date from column, index, or first column."""
+    """Find date in column, index, or first column."""
 
-    # explicit column
     for col in ["date", "Date", "DATE"]:
         if col in df.columns:
             return pd.to_datetime(df[col], errors="coerce")
@@ -74,7 +73,7 @@ def _extract_date(df: pd.DataFrame):
 
 
 def _extract_close(df: pd.DataFrame):
-    """Find and parse close price from common column variants."""
+    """Find close price from common variants."""
 
     for col in [
         "close", "Close", "CLOSE",
@@ -87,11 +86,20 @@ def _extract_close(df: pd.DataFrame):
     return None
 
 
+def _canonical_date(series):
+    """Force strict YYYY-MM-DD pandas datetime."""
+
+    series = pd.to_datetime(series, errors="coerce")
+
+    # Works for Series or DatetimeIndex
+    if isinstance(series, pd.Series):
+        return series.dt.normalize()
+
+    return pd.to_datetime(series).normalize()
+
+
 def load_prices() -> pd.DataFrame:
-    """
-    Load ALL raw CSVs and canonicalize in memory.
-    This replaces the entire Phase-2.5 normalization concept.
-    """
+    """Load and canonicalize all CSVs in memory."""
 
     files = list(RAW_DATA_DIR.glob("*.csv"))
     if not files:
@@ -110,7 +118,7 @@ def load_prices() -> pd.DataFrame:
             continue
 
         cleaned = pd.DataFrame({
-            "date": pd.to_datetime(date, errors="coerce").normalize(),
+            "date": _canonical_date(date),
             "ticker": f.stem.upper(),
             "close": close,
         }).dropna()
@@ -131,7 +139,7 @@ def load_prices() -> pd.DataFrame:
 
 
 # ============================================================
-# FEATURE FACTORY (DETERMINISTIC)
+# FEATURES
 # ============================================================
 
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -152,7 +160,7 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ============================================================
-# RULE-BASED ALPHA (NO ML CONTAMINATION)
+# ALPHA (RULE-BASED ONLY)
 # ============================================================
 
 def compute_alpha(df: pd.DataFrame) -> pd.DataFrame:
@@ -168,7 +176,7 @@ def compute_alpha(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ============================================================
-# WEEKLY PORTFOLIO BACKTEST WITH COSTS
+# BACKTEST
 # ============================================================
 
 def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
@@ -208,10 +216,8 @@ def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
             for t in set(new_weights) | set(current_weights)
         )
 
-        # transaction cost
         equity -= equity * turnover * TOTAL_COST
 
-        # weekly return approximation
         weekly_ret = selected["ret_5d"].mean()
         equity *= (1 + weekly_ret)
 
@@ -222,7 +228,7 @@ def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ============================================================
-# SAVE OUTPUTS + CHECKSUM (GOVERNANCE LOCK)
+# SAVE OUTPUTS
 # ============================================================
 
 def save_outputs(equity_curve: pd.DataFrame):
@@ -237,22 +243,11 @@ def save_outputs(equity_curve: pd.DataFrame):
 
 
 # ============================================================
-# MAIN EXECUTION
+# MAIN
 # ============================================================
 
 def main():
     print("▶ Phase-5 Institutional Backtest Started")
 
     df = load_prices()
-    df = build_features(df)
-    df = compute_alpha(df)
-
-    equity_curve = run_backtest(df)
-    save_outputs(equity_curve)
-
-    print("✅ Phase-5 Backtest Complete")
-    print(f"📁 Output saved to: {OUTPUT_DIR}")
-
-
-if __name__ == "__main__":
-    main()
+    df = build_features_
