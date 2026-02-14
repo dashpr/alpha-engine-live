@@ -43,6 +43,13 @@ jobs:
           pip install -r requirements.txt
 
       # -----------------------------------
+      # Phase-4 Step-1 → Historical Data Engine
+      # (SAFE ADDITION — does not affect Phase-3)
+      # -----------------------------------
+      - name: Run Historical Data Engine
+        run: python backtest/engines/data_engine.py
+
+      # -----------------------------------
       # Phase-2 Data Spine (Live Prices)
       # -----------------------------------
       - name: Run Phase-2 Live Price Engine
@@ -84,6 +91,3 @@ jobs:
         with:
           name: ai-pms-phase3-outputs
           path: ai-pms/data/output/
-          
-- name: Run Historical Data Engine
-  run: python backtest/engines/data_engine.py
