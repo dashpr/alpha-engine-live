@@ -1,0 +1,74 @@
+name: Phase-5 Institutional Backtest
+
+on:
+  # Manual trigger for audit-grade execution
+  workflow_dispatch:
+
+  # Weekly scheduled institutional backtest (Sunday 6:00 AM IST ≈ 00:30 UTC)
+  schedule:
+    - cron: "30 0 * * 0"
+
+jobs:
+  phase5:
+    runs-on: ubuntu-latest
+
+    # ---------------------------------------------
+    # Execute inside ai-pms monorepo subdirectory
+    # ---------------------------------------------
+    defaults:
+      run:
+        working-directory: ai-pms
+
+    steps:
+      # ---------------------------------------------
+      # Checkout repository
+      # ---------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ---------------------------------------------
+      # Setup Python
+      # ---------------------------------------------
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # ---------------------------------------------
+      # Install dependencies
+      # ---------------------------------------------
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # =============================================
+      # STEP-1 → Download NSE Historical Data
+      # =============================================
+      - name: Download NSE Historical Data
+        run: |
+          echo "▶ Running NSE historical downloader..."
+          python backtest/engines/nse_downloader.py
+          echo "▶ Listing raw data directory:"
+          ls -R data/raw || true
+
+      # =============================================
+      # STEP-2 → Phase-2.5 Normalization Bridge
+      # =============================================
+      - name: Normalize raw data for Phase-5
+        run: python backtest/engines/normalize_for_phase5.py
+
+      # =============================================
+      # STEP-3 → Run Frozen Phase-5 Institutional Backtest
+      # =============================================
+      - name: Run Phase-5 Institutional Backtest
+        run: python backtest/run_phase5_backtest.py
+
+      # =============================================
+      # STEP-4 → Upload Phase-5 Outputs (Audit Artifacts)
+      # =============================================
+      - name: Upload Phase-5 outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-pms-phase5-results
+          path: ai-pms/data/output/phase5/
