@@ -1,10 +1,10 @@
 name: Phase-5 Frozen Backtest
 
 on:
-  workflow_dispatch:        # manual run only (regulatory discipline)
+  workflow_dispatch:
   push:
     paths:
-      - "phase5_frozen/**"
+      - "ai-pms/phase5_frozen/**"
       - "data/raw/**"
 
 jobs:
@@ -25,12 +25,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas numpy
 
-      - name: Run Phase-5 backtest
+      - name: Run Phase-5 frozen backtest
         run: |
-          python -m phase5_frozen.run_backtest
+          python ai-pms/phase5_frozen/run_backtest.py
 
       - name: Upload backtest outputs
         uses: actions/upload-artifact@v4
         with:
           name: phase5-results
-          path: phase5_frozen/output/
+          path: ai-pms/phase5_frozen/output/
