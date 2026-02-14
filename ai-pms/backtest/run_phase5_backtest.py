@@ -1,27 +1,36 @@
 """
 AI-PMS — PHASE-5 FROZEN INSTITUTIONAL BACKTEST
-Monorepo-native • Deterministic • CI-safe • Final
+FINAL PRODUCTION VERSION (SINGLE FILE)
+
+Key properties:
+• Uses ONLY raw CSV history (no ML, no artefacts)
+• Robust to messy NSE/Yahoo CSV formats
+• No file mutation, canonicalization in memory only
+• Deterministic weekly portfolio simulation
+• Institutional transaction costs included
+• Produces reproducible equity curve + checksum
 """
 
-import hashlib
 from pathlib import Path
+import hashlib
 import pandas as pd
 
 
 # ============================================================
-# CONFIGURATION (FROZEN)
+# PATH CONFIGURATION (MONOREPO SAFE)
 # ============================================================
 
 CURRENT_FILE = Path(__file__).resolve()
-
-# repo root
 REPO_ROOT = CURRENT_FILE.parents[2]
-
-# ai-pms root (monorepo scoped)
 AIPMS_ROOT = REPO_ROOT / "ai-pms"
 
 RAW_DATA_DIR = AIPMS_ROOT / "data" / "raw"
 OUTPUT_DIR = AIPMS_ROOT / "data" / "output" / "phase5"
+
+
+# ============================================================
+# BACKTEST CONFIG (FROZEN)
+# ============================================================
 
 START_DATE = "2010-01-01"
 PORTFOLIO_SIZE = 15
@@ -34,39 +43,95 @@ TOTAL_COST = BROKERAGE + SLIPPAGE + IMPACT
 
 
 # ============================================================
-# STEP-1: LOAD RAW PRICE DATA
+# UNIVERSAL CSV PARSING (NO NORMALIZATION STEP NEEDED)
 # ============================================================
 
-REQUIRED_COLUMNS = {"date", "ticker", "close"}
+def _extract_date(df: pd.DataFrame):
+    """Find and parse date from column, index, or first column."""
+
+    # explicit column
+    for col in ["date", "Date", "DATE"]:
+        if col in df.columns:
+            return pd.to_datetime(df[col], errors="coerce")
+
+    # index
+    try:
+        idx = pd.to_datetime(df.index, errors="coerce")
+        if idx.notna().sum() > len(df) * 0.5:
+            return idx
+    except Exception:
+        pass
+
+    # first column fallback
+    try:
+        col0 = pd.to_datetime(df.iloc[:, 0], errors="coerce")
+        if col0.notna().sum() > len(df) * 0.5:
+            return col0
+    except Exception:
+        pass
+
+    return None
+
+
+def _extract_close(df: pd.DataFrame):
+    """Find and parse close price from common column variants."""
+
+    for col in [
+        "close", "Close", "CLOSE",
+        "adj close", "Adj Close",
+        "price", "Price"
+    ]:
+        if col in df.columns:
+            return pd.to_numeric(df[col], errors="coerce")
+
+    return None
 
 
 def load_prices() -> pd.DataFrame:
-    files = list(RAW_DATA_DIR.glob("*.csv"))
+    """
+    Load ALL raw CSVs and canonicalize in memory.
+    This replaces the entire Phase-2.5 normalization concept.
+    """
 
+    files = list(RAW_DATA_DIR.glob("*.csv"))
     if not files:
-        raise RuntimeError(
-            f"❌ No CSV files found in expected path:\n{RAW_DATA_DIR}"
-        )
+        raise RuntimeError(f"No CSV files found in {RAW_DATA_DIR}")
 
     frames = []
+
     for f in files:
         df = pd.read_csv(f)
 
-        if not REQUIRED_COLUMNS.issubset(df.columns):
-            raise RuntimeError(f"❌ Schema violation in {f.name}")
+        date = _extract_date(df)
+        close = _extract_close(df)
 
-        frames.append(df[["date", "ticker", "close"]])
+        if date is None or close is None:
+            print(f"⚠ Skipping {f.name} → cannot parse date/close")
+            continue
+
+        cleaned = pd.DataFrame({
+            "date": pd.to_datetime(date, errors="coerce").normalize(),
+            "ticker": f.stem.upper(),
+            "close": close,
+        }).dropna()
+
+        if not cleaned.empty:
+            frames.append(cleaned)
+
+    if not frames:
+        raise RuntimeError("No valid price data after parsing.")
 
     df = pd.concat(frames, ignore_index=True)
 
-    df["date"] = pd.to_datetime(df["date"])
-    df = df[df["date"] >= START_DATE]
-
-    return df.sort_values(["date", "ticker"]).reset_index(drop=True)
+    return (
+        df.drop_duplicates(["date", "ticker"])
+        .sort_values(["date", "ticker"])
+        .reset_index(drop=True)
+    )
 
 
 # ============================================================
-# STEP-2: FEATURES
+# FEATURE FACTORY (DETERMINISTIC)
 # ============================================================
 
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -87,7 +152,7 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ============================================================
-# STEP-3: RULE-BASED ALPHA
+# RULE-BASED ALPHA (NO ML CONTAMINATION)
 # ============================================================
 
 def compute_alpha(df: pd.DataFrame) -> pd.DataFrame:
@@ -103,10 +168,11 @@ def compute_alpha(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ============================================================
-# STEP-4: WEEKLY BACKTEST
+# WEEKLY PORTFOLIO BACKTEST WITH COSTS
 # ============================================================
 
 def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
+
     weekly_dates = (
         df["date"]
         .drop_duplicates()
@@ -122,6 +188,7 @@ def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
     equity_curve = []
 
     for date in weekly_dates:
+
         day = df[df["date"] <= date]
         if day.empty:
             continue
@@ -141,8 +208,10 @@ def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
             for t in set(new_weights) | set(current_weights)
         )
 
+        # transaction cost
         equity -= equity * turnover * TOTAL_COST
 
+        # weekly return approximation
         weekly_ret = selected["ret_5d"].mean()
         equity *= (1 + weekly_ret)
 
@@ -153,10 +222,11 @@ def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ============================================================
-# STEP-5: SAVE OUTPUTS
+# SAVE OUTPUTS + CHECKSUM (GOVERNANCE LOCK)
 # ============================================================
 
 def save_outputs(equity_curve: pd.DataFrame):
+
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     equity_path = OUTPUT_DIR / "equity_curve.csv"
@@ -167,7 +237,7 @@ def save_outputs(equity_curve: pd.DataFrame):
 
 
 # ============================================================
-# MAIN
+# MAIN EXECUTION
 # ============================================================
 
 def main():
