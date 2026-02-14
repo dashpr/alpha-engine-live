@@ -1,91 +1,66 @@
-"""
-Historical Data Engine
-Loads Nifty-300 CSV history for institutional backtesting
-"""
-
 import pandas as pd
 from pathlib import Path
 
 
 class HistoricalDataEngine:
     """
-    Production-grade historical loader
+    Loads historical CSV files from:
+    ai-pms/data/raw/
+
+    Each CSV must contain:
+    date, open, high, low, close, volume
     """
 
-    def __init__(self, data_folder: str = "data/raw/nifty300"):
+    def __init__(self, data_folder: str = "data/raw"):
         self.data_folder = Path(data_folder)
 
-    # ======================================================
-    # MAIN ENTRY
-    # ======================================================
+    # =====================================================
+    def _load_single_file(self, file_path: Path):
+        df = pd.read_csv(file_path)
 
-    def run(self) -> pd.DataFrame:
+        # ---- Standardise column names
+        df.columns = [c.lower().strip() for c in df.columns]
+
+        # ---- Required columns
+        required = {"date", "open", "high", "low", "close", "volume"}
+        if not required.issubset(set(df.columns)):
+            return None
+
+        # ---- Parse date safely
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
+        # ---- Convert numeric columns
+        for col in ["open", "high", "low", "close", "volume"]:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        df = df.dropna(subset=["date", "close"])
+
+        # ---- Add symbol from filename
+        df["symbol"] = file_path.stem.upper()
+
+        return df[["date", "symbol", "open", "high", "low", "close", "volume"]]
+
+    # =====================================================
+    def run(self):
         if not self.data_folder.exists():
             raise FileNotFoundError(f"{self.data_folder} not found")
 
-        df = self._load_all_csv()
-        df = self._clean_dataframe(df)
-
-        return df
-
-    # ======================================================
-    # LOAD ALL CSV FILES
-    # ======================================================
-
-    def _load_all_csv(self) -> pd.DataFrame:
         files = list(self.data_folder.glob("*.csv"))
 
-        if not files:
-            raise FileNotFoundError(f"No CSV files inside {self.data_folder}")
+        if len(files) == 0:
+            raise FileNotFoundError("No CSV files found in data/raw")
 
-        all_data = []
+        dfs = []
 
         for f in files:
-            try:
-                temp = pd.read_csv(f)
+            df = self._load_single_file(f)
+            if df is not None:
+                dfs.append(df)
 
-                # infer symbol from filename
-                symbol = f.stem.upper()
-                temp["symbol"] = symbol
+        if len(dfs) == 0:
+            raise ValueError("No valid price data loaded")
 
-                all_data.append(temp)
+        full_df = pd.concat(dfs, ignore_index=True)
+        full_df = full_df.sort_values(["date", "symbol"])
 
-            except Exception as e:
-                print(f"⚠️ Skipped {f.name} → {e}")
-
-        if not all_data:
-            raise ValueError("No valid CSV data loaded")
-
-        return pd.concat(all_data, ignore_index=True)
-
-    # ======================================================
-    # CLEAN DATAFRAME
-    # ======================================================
-
-    def _clean_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
-        # --- standard column rename (case-safe)
-        df.columns = [c.lower().strip() for c in df.columns]
-
-        # --- required columns
-        required = {"date", "open", "high", "low", "close", "volume", "symbol"}
-        missing = required - set(df.columns)
-
-        if missing:
-            raise ValueError(f"Missing required columns: {missing}")
-
-        # --- date parsing (fast & safe)
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
-
-        # --- numeric conversion
-        price_cols = ["open", "high", "low", "close", "volume"]
-
-        for col in price_cols:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-
-        # --- drop bad rows
-        df = df.dropna(subset=["date", "close"])
-
-        # --- sort for backtest engines
-        df = df.sort_values(["date", "symbol"]).reset_index(drop=True)
-
-        return df
+        return full_df
