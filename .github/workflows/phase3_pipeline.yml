@@ -96,4 +96,6 @@ jobs:
       # Phase-5 Institutional Backtest
       # -----------------------------------
       - name: Run Phase-5 Institutional Backtest (14Y)
+        env:
+          PYTHONPATH: ai-pms
         run: python backtest/run_phase5_backtest.py
