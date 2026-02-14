@@ -99,3 +99,28 @@ jobs:
         env:
           PYTHONPATH: .
         run: python backtest/run_phase5_backtest.py
+
+      # -----------------------------------
+      # Phase-5 Data Download (NSE History)
+      # -----------------------------------
+      - name: Download NSE Historical Data
+        env:
+          PYTHONPATH: .
+        run: python backtest/engines/nse_downloader.py
+
+      # -----------------------------------
+      # Phase-5 Institutional Backtest (14Y)
+      # -----------------------------------
+      - name: Run Phase-5 Institutional Backtest
+        env:
+          PYTHONPATH: .
+        run: python backtest/run_phase5_backtest.py
+
+      # -----------------------------------
+      # Upload Phase-5 outputs
+      # -----------------------------------
+      - name: Upload Phase-5 outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-pms-phase5-results
+          path: ai-pms/data/output/phase5/
