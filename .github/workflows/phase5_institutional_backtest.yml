@@ -53,12 +53,6 @@ jobs:
           ls -R data/raw || true
 
       # =============================================
-      # STEP-2 → Phase-2.5 Normalization Bridge
-      # =============================================
-      - name: Normalize raw data for Phase-5
-        run: python backtest/engines/normalize_for_phase5.py
-
-      # =============================================
       # STEP-3 → Run Frozen Phase-5 Institutional Backtest
       # =============================================
       - name: Run Phase-5 Institutional Backtest
