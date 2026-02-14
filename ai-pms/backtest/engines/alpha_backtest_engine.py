@@ -1,92 +1,132 @@
-# ai-pms/backtest/engines/alpha_backtest_engine.py
-
 import pandas as pd
 import numpy as np
 
 
 class AlphaBacktestEngine:
-    def __init__(self, model_name: str, rebalance_days: int = 5, top_n: int = 20):
+    """
+    Institutional Alpha Generator for Phase-5
+
+    REQUIRED OUTPUT SCHEMA:
+        date | ret | model | regime
+    """
+
+    def __init__(self, model_name: str = "momentum"):
         self.model_name = model_name
-        self.rebalance_days = rebalance_days
-        self.top_n = top_n
 
-    # ---------- ALPHA MODELS ----------
+    # ---------------------------------------------------------
+    # Regime detection (simple but deterministic)
+    # ---------------------------------------------------------
+    def _detect_regime(self, df: pd.DataFrame) -> pd.Series:
+        """
+        Simple volatility-based regime proxy.
+        This keeps Phase-5 deterministic & reproducible.
+        """
 
+        vol = df.groupby("date")["ret_1d"].std()
+
+        regime = pd.Series(index=vol.index, dtype="object")
+
+        regime[vol < vol.quantile(0.33)] = "bull"
+        regime[(vol >= vol.quantile(0.33)) & (vol <= vol.quantile(0.66))] = "sideways"
+        regime[vol > vol.quantile(0.66)] = "bear"
+
+        return regime
+
+    # ---------------------------------------------------------
+    # Alpha models
+    # ---------------------------------------------------------
     def _momentum(self, df: pd.DataFrame) -> pd.DataFrame:
-        df["ret_20"] = df.groupby("symbol")["close"].pct_change(20)
+        df = df.copy()
+
+        df["ret"] = (
+            df.groupby("symbol")["close"]
+            .pct_change(20)
+        )
+
         return df
 
     def _mean_reversion(self, df: pd.DataFrame) -> pd.DataFrame:
-        df["ret_5"] = df.groupby("symbol")["close"].pct_change(5)
-        df["ret_20"] = df.groupby("symbol")["close"].pct_change(20)
-        df["score"] = -df["ret_5"] + df["ret_20"]
+        df = df.copy()
+
+        z = (
+            df.groupby("symbol")["close"]
+            .transform(lambda x: (x - x.rolling(20).mean()) / x.rolling(20).std())
+        )
+
+        df["ret"] = -z / 100  # scaled
+
         return df
 
     def _ml_factor(self, df: pd.DataFrame) -> pd.DataFrame:
-        df["mom"] = df.groupby("symbol")["close"].pct_change(20)
-        df["vol"] = (
-            df.groupby("symbol")["close"]
-            .pct_change()
-            .rolling(20)
-            .std()
-            .reset_index(level=0, drop=True)
-        )
-        df["score"] = df["mom"] / (df["vol"] + 1e-6)
+        """
+        Placeholder deterministic ML proxy.
+        Real ML comes in Phase-6.
+        """
+
+        df = df.copy()
+
+        mom = df.groupby("symbol")["close"].pct_change(60)
+        vol = df.groupby("symbol")["close"].pct_change().rolling(20).std().reset_index(level=0, drop=True)
+
+        score = mom - vol
+        df["ret"] = score / 50
+
         return df
 
-    # ---------- SELECT MODEL ----------
-
+    # ---------------------------------------------------------
+    # Dispatcher
+    # ---------------------------------------------------------
     def _create_alpha(self, df: pd.DataFrame) -> pd.DataFrame:
+
         if self.model_name == "momentum":
-            df = self._momentum(df)
-            df["score"] = df["ret_20"]
+            return self._momentum(df)
 
-        elif self.model_name == "mean_reversion":
-            df = self._mean_reversion(df)
+        if self.model_name == "mean_reversion":
+            return self._mean_reversion(df)
 
-        elif self.model_name == "ml_factor":
-            df = self._ml_factor(df)
+        if self.model_name == "ml_factor":
+            return self._ml_factor(df)
 
-        else:
-            raise ValueError(f"Unknown alpha model: {self.model_name}")
+        raise ValueError(f"Unknown alpha model: {self.model_name}")
 
-        return df
-
-    # ---------- PORTFOLIO SELECTION ----------
-
+    # ---------------------------------------------------------
+    # PUBLIC RUN
+    # ---------------------------------------------------------
     def run(self, df: pd.DataFrame) -> pd.DataFrame:
+
+        if df.empty:
+            raise ValueError("Historical dataframe is empty")
+
+        df = df.sort_values(["symbol", "date"])
+
+        # ---------------------------------------------
+        # Create alpha returns
+        # ---------------------------------------------
         df = self._create_alpha(df)
-        df = df.dropna(subset=["score"])
 
-        rebalance_dates = df["date"].drop_duplicates().sort_values()[:: self.rebalance_days]
+        # drop NaNs from rolling windows
+        df = df.dropna(subset=["ret"])
 
-        portfolio_rows = []
+        # ---------------------------------------------
+        # Detect regime
+        # ---------------------------------------------
+        regime_series = self._detect_regime(df)
 
-        for d in rebalance_dates:
-            day_df = df[df["date"] == d].nlargest(self.top_n, "score")
+        df = df.merge(
+            regime_series.rename("regime"),
+            left_on="date",
+            right_index=True,
+            how="left",
+        )
 
-            if day_df.empty:
-                continue
+        # ---------------------------------------------
+        # Final institutional schema
+        # ---------------------------------------------
+        out = df[["date", "ret", "regime"]].copy()
+        out["model"] = self.model_name
 
-            weight = 1.0 / len(day_df)
+        # enforce types
+        out["ret"] = pd.to_numeric(out["ret"], errors="coerce")
+        out = out.dropna()
 
-            for _, r in day_df.iterrows():
-                portfolio_rows.append(
-                    {
-                        "date": d,
-                        "symbol": r["symbol"],
-                        "weight": weight,
-                        "ret": 0.0,  # filled later
-                    }
-                )
-
-        alpha_df = pd.DataFrame(portfolio_rows)
-
-        # attach next-period return
-        price = df[["date", "symbol", "close"]].copy()
-        price["fwd_ret"] = price.groupby("symbol")["close"].pct_change().shift(-1)
-
-        alpha_df = alpha_df.merge(price[["date", "symbol", "fwd_ret"]], on=["date", "symbol"], how="left")
-        alpha_df["ret"] = alpha_df["fwd_ret"] * alpha_df["weight"]
-
-        return alpha_df.dropna(subset=["ret"])
+        return out.reset_index(drop=True)
