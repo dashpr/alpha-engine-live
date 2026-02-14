@@ -4,79 +4,92 @@ import numpy as np
 
 class AlphaBacktestEngine:
     """
-    Institutional Alpha Generator for Phase-5
+    Institutional Alpha Generator (Phase-5)
 
-    REQUIRED OUTPUT SCHEMA:
+    INPUT REQUIRED:
+        date | symbol | close
+
+    OUTPUT GUARANTEED:
         date | ret | model | regime
     """
 
+    # ---------------------------------------------------------
     def __init__(self, model_name: str = "momentum"):
         self.model_name = model_name
 
     # ---------------------------------------------------------
-    # Regime detection (simple but deterministic)
+    # Internal data preparation (STRICT)
+    # ---------------------------------------------------------
+    def _prepare_base(self, df: pd.DataFrame) -> pd.DataFrame:
+        required = {"date", "symbol", "close"}
+
+        if not required.issubset(df.columns):
+            raise ValueError(f"Input DF must contain columns: {required}")
+
+        df = df.copy()
+
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        df["close"] = pd.to_numeric(df["close"], errors="coerce")
+
+        df = df.dropna(subset=["date", "symbol", "close"])
+        df = df.sort_values(["symbol", "date"])
+
+        # ---- compute 1-day return internally (CRITICAL FIX)
+        df["ret_1d"] = df.groupby("symbol")["close"].pct_change(1)
+
+        return df
+
+    # ---------------------------------------------------------
+    # Regime detection (market volatility dispersion)
     # ---------------------------------------------------------
     def _detect_regime(self, df: pd.DataFrame) -> pd.Series:
         """
-        Simple volatility-based regime proxy.
-        This keeps Phase-5 deterministic & reproducible.
+        Deterministic volatility regime.
+        Uses cross-sectional std of daily returns.
         """
 
-        vol = df.groupby("date")["ret_1d"].std()
+        market_vol = df.groupby("date")["ret_1d"].std()
 
-        regime = pd.Series(index=vol.index, dtype="object")
+        regime = pd.Series(index=market_vol.index, dtype="object")
 
-        regime[vol < vol.quantile(0.33)] = "bull"
-        regime[(vol >= vol.quantile(0.33)) & (vol <= vol.quantile(0.66))] = "sideways"
-        regime[vol > vol.quantile(0.66)] = "bear"
+        q1 = market_vol.quantile(0.33)
+        q2 = market_vol.quantile(0.66)
+
+        regime[market_vol <= q1] = "bull"
+        regime[(market_vol > q1) & (market_vol <= q2)] = "sideways"
+        regime[market_vol > q2] = "bear"
 
         return regime
 
     # ---------------------------------------------------------
     # Alpha models
     # ---------------------------------------------------------
-    def _momentum(self, df: pd.DataFrame) -> pd.DataFrame:
-        df = df.copy()
+    def _momentum(self, df: pd.DataFrame) -> pd.Series:
+        return df.groupby("symbol")["close"].pct_change(20)
 
-        df["ret"] = (
-            df.groupby("symbol")["close"]
-            .pct_change(20)
+    def _mean_reversion(self, df: pd.DataFrame) -> pd.Series:
+        z = df.groupby("symbol")["close"].transform(
+            lambda x: (x - x.rolling(20).mean()) / x.rolling(20).std()
         )
+        return -z / 100
 
-        return df
-
-    def _mean_reversion(self, df: pd.DataFrame) -> pd.DataFrame:
-        df = df.copy()
-
-        z = (
-            df.groupby("symbol")["close"]
-            .transform(lambda x: (x - x.rolling(20).mean()) / x.rolling(20).std())
-        )
-
-        df["ret"] = -z / 100  # scaled
-
-        return df
-
-    def _ml_factor(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _ml_factor(self, df: pd.DataFrame) -> pd.Series:
         """
-        Placeholder deterministic ML proxy.
-        Real ML comes in Phase-6.
+        Deterministic ML proxy for Phase-5.
+        Real ML enters Phase-6.
         """
-
-        df = df.copy()
-
         mom = df.groupby("symbol")["close"].pct_change(60)
-        vol = df.groupby("symbol")["close"].pct_change().rolling(20).std().reset_index(level=0, drop=True)
-
-        score = mom - vol
-        df["ret"] = score / 50
-
-        return df
+        vol = (
+            df.groupby("symbol")["close"]
+            .pct_change()
+            .rolling(20)
+            .std()
+            .reset_index(level=0, drop=True)
+        )
+        return (mom - vol) / 50
 
     # ---------------------------------------------------------
-    # Dispatcher
-    # ---------------------------------------------------------
-    def _create_alpha(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _create_alpha(self, df: pd.DataFrame) -> pd.Series:
 
         if self.model_name == "momentum":
             return self._momentum(df)
@@ -97,19 +110,15 @@ class AlphaBacktestEngine:
         if df.empty:
             raise ValueError("Historical dataframe is empty")
 
-        df = df.sort_values(["symbol", "date"])
+        # ---- strict preparation
+        df = self._prepare_base(df)
 
-        # ---------------------------------------------
-        # Create alpha returns
-        # ---------------------------------------------
-        df = self._create_alpha(df)
+        # ---- alpha signal
+        df["ret"] = self._create_alpha(df)
 
-        # drop NaNs from rolling windows
         df = df.dropna(subset=["ret"])
 
-        # ---------------------------------------------
-        # Detect regime
-        # ---------------------------------------------
+        # ---- regime detection
         regime_series = self._detect_regime(df)
 
         df = df.merge(
@@ -119,13 +128,10 @@ class AlphaBacktestEngine:
             how="left",
         )
 
-        # ---------------------------------------------
-        # Final institutional schema
-        # ---------------------------------------------
+        # ---- final institutional schema
         out = df[["date", "ret", "regime"]].copy()
         out["model"] = self.model_name
 
-        # enforce types
         out["ret"] = pd.to_numeric(out["ret"], errors="coerce")
         out = out.dropna()
 
