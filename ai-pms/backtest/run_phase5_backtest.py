@@ -1,115 +1,86 @@
+# ai-pms/backtest/run_phase5_backtest.py
+
 import pandas as pd
-import numpy as np
-from pathlib import Path
 
 from backtest.engines.data_engine import HistoricalDataEngine
 from backtest.engines.alpha_backtest_engine import AlphaBacktestEngine
 from backtest.engines.portfolio_backtest_engine import PortfolioBacktestEngine
 
 
-DATA_FOLDER = "data/raw"
-MODELS = ["momentum", "mean_reversion", "ml_factor"]
+DATA_FOLDER = "ai-pms/data/raw"
 
 
-# =============================================================
-# LOAD DATA
-# =============================================================
-def load_data():
+# ---------- METRICS ----------
+
+def compute_metrics(equity_curve: pd.DataFrame) -> dict:
+    returns = equity_curve["equity"].pct_change().dropna()
+
+    cagr = (equity_curve["equity"].iloc[-1] / equity_curve["equity"].iloc[0]) ** (
+        252 / len(returns)
+    ) - 1
+
+    vol = returns.std() * (252**0.5)
+    sharpe = cagr / vol if vol != 0 else 0
+
+    dd = equity_curve["equity"] / equity_curve["equity"].cummax() - 1
+    max_dd = dd.min()
+
+    return {"cagr": cagr, "sharpe": sharpe, "max_dd": max_dd}
+
+
+# ---------- PIPELINE ----------
+
+def load_data() -> pd.DataFrame:
     print("📊 Loading historical data...")
-
     engine = HistoricalDataEngine(DATA_FOLDER)
     df = engine.run()
 
     print("\n📊 Historical Data Loaded")
-    print(f"Rows     : {len(df):,}")
-    print(f"Symbols  : {df['symbol'].nunique():,}")
-    print(f"Date span: {df['date'].min()} → {df['date'].max()}")
+    print("Rows     :", len(df))
+    print("Symbols  :", df["symbol"].nunique())
+    print("Date span:", df["date"].min(), "→", df["date"].max())
 
     return df
 
 
-# =============================================================
-# RUN ALPHA MODEL
-# =============================================================
-def run_alpha_model(df, model_name):
-    print(f"\n🧠 Running Alpha Model → {model_name}")
-
-    engine = AlphaBacktestEngine(model_name=model_name)
+def run_alpha_model(df: pd.DataFrame, model: str) -> pd.DataFrame:
+    print(f"\n🧠 Running Alpha Model → {model}")
+    engine = AlphaBacktestEngine(model_name=model)
     alpha_df = engine.run(df)
-
-    print(f"📈 Alpha rows: {len(alpha_df):,}")
-
+    print("📈 Alpha rows:", len(alpha_df))
     return alpha_df
 
 
-# =============================================================
-# PORTFOLIO SIMULATION
-# =============================================================
-def run_portfolio(alpha_df, model_name):
-    print(f"💼 Portfolio simulation → {model_name}")
-
+def run_portfolio(alpha_df: pd.DataFrame, model: str) -> pd.DataFrame:
+    print(f"💼 Portfolio simulation → {model}")
     engine = PortfolioBacktestEngine()
-    equity_curve = engine.run(alpha_df)
-
-    return equity_curve
+    return engine.run(alpha_df)
 
 
-# =============================================================
-# METRICS
-# =============================================================
-def compute_metrics(equity_curve: pd.DataFrame):
+# ---------- MAIN ----------
 
-    if "equity" not in equity_curve.columns:
-        raise ValueError("Equity curve missing 'equity' column")
-
-    returns = equity_curve["equity"].pct_change().dropna()
-
-    years = len(returns) / 252
-    cagr = (equity_curve["equity"].iloc[-1] / equity_curve["equity"].iloc[0]) ** (
-        1 / years
-    ) - 1
-
-    vol = returns.std() * np.sqrt(252)
-    sharpe = cagr / vol if vol != 0 else 0
-
-    cummax = equity_curve["equity"].cummax()
-    drawdown = equity_curve["equity"] / cummax - 1
-    max_dd = drawdown.min()
-
-    return {
-        "cagr": float(cagr),
-        "volatility": float(vol),
-        "sharpe": float(sharpe),
-        "max_drawdown": float(max_dd),
-    }
-
-
-# =============================================================
-# MAIN PHASE-5
-# =============================================================
 def main():
     print("🚀 Phase-5 Institutional Backtest Started (2010–2026)")
 
     df = load_data()
 
+    models = ["momentum", "mean_reversion", "ml_factor"]
     results = []
 
-    for model in MODELS:
-        alpha_df = run_alpha_model(df, model)
-        equity_curve = run_portfolio(alpha_df, model)
-        metrics = compute_metrics(equity_curve)
+    for m in models:
+        alpha_df = run_alpha_model(df, m)
+        equity = run_portfolio(alpha_df, m)
+        metrics = compute_metrics(equity)
 
-        metrics["model"] = model
+        metrics["model"] = m
         results.append(metrics)
 
     results_df = pd.DataFrame(results)
+    print("\n📊 Model Comparison\n")
+    print(results_df)
 
-    print("\n📊 FINAL MODEL COMPARISON")
-    print(results_df.sort_values("cagr", ascending=False))
-
-    best_model = results_df.sort_values("cagr", ascending=False).iloc[0]["model"]
-
-    print(f"\n🏆 BEST MODEL → {best_model}")
+    best = results_df.sort_values("cagr", ascending=False).iloc[0]
+    print(f"\n🏆 Best Model → {best['model']} | CAGR: {best['cagr']:.2%}")
 
 
 if __name__ == "__main__":
