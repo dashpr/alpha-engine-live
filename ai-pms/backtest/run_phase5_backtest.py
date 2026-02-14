@@ -7,7 +7,7 @@ from backtest.engines.alpha_backtest_engine import AlphaBacktestEngine
 from backtest.engines.portfolio_backtest_engine import PortfolioBacktestEngine
 
 
-DATA_FOLDER = "ai-pms/data/raw"
+DATA_FOLDER = "data/raw"
 
 
 # ---------- METRICS ----------
