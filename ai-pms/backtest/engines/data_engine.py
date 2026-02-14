@@ -1,49 +1,99 @@
-# ai-pms/backtest/engines/data_engine.py
-
 import os
 import pandas as pd
 
 
 class HistoricalDataEngine:
-    def __init__(self, data_folder: str):
+    """
+    Institutional-grade historical CSV loader
+    Handles:
+    - Multiple CSV files
+    - Column normalization
+    - Schema validation
+    """
+
+    def __init__(self, data_folder: str = "data/raw"):
         self.data_folder = data_folder
 
-    def _load_csvs(self) -> pd.DataFrame:
+    # -------------------------------------------------------
+    # Public runner
+    # -------------------------------------------------------
+    def run(self) -> pd.DataFrame:
         if not os.path.exists(self.data_folder):
             raise FileNotFoundError(f"{self.data_folder} not found")
 
-        all_files = [
-            os.path.join(self.data_folder, f)
-            for f in os.listdir(self.data_folder)
-            if f.endswith(".csv")
-        ]
+        print("📊 Loading historical data...")
 
-        dfs = []
+        df = self._load_csvs()
+        df = self._clean_schema(df)
 
-        for file in all_files:
-            df = pd.read_csv(file)
+        print("\n📊 Historical Data Loaded")
+        print(f"Rows     : {len(df):,}")
+        print(f"Symbols  : {df['symbol'].nunique():,}")
+        print(f"Date span: {df['date'].min()} → {df['date'].max()}")
 
-            # normalize columns
-            df.columns = [c.lower() for c in df.columns]
+        return df
 
-            df = df.rename(
-                columns={
-                    "date": "date",
-                    "close": "close",
-                    "open": "open",
-                    "high": "high",
-                    "low": "low",
-                    "volume": "volume",
-                    "ticker": "symbol",
-                }
-            )
+    # -------------------------------------------------------
+    # Load all CSV files
+    # -------------------------------------------------------
+    def _load_csvs(self) -> pd.DataFrame:
+        frames = []
 
-            df["date"] = pd.to_datetime(df["date"], errors="coerce")
-            df = df.dropna(subset=["date", "close", "symbol"])
+        for file in os.listdir(self.data_folder):
+            if not file.endswith(".csv"):
+                continue
 
-            dfs.append(df[["date", "symbol", "open", "high", "low", "close", "volume"]])
+            path = os.path.join(self.data_folder, file)
+            df = pd.read_csv(path)
 
-        return pd.concat(dfs).sort_values(["date", "symbol"])
+            frames.append(df)
 
-    def run(self) -> pd.DataFrame:
-        return self._load_csvs()
+        if not frames:
+            raise ValueError("No CSV files found in data folder")
+
+        return pd.concat(frames, ignore_index=True)
+
+    # -------------------------------------------------------
+    # Clean + normalize schema
+    # -------------------------------------------------------
+    def _clean_schema(self, df: pd.DataFrame) -> pd.DataFrame:
+        # Normalize column names
+        df.columns = [c.strip().lower() for c in df.columns]
+
+        # Map common variations → canonical names
+        column_map = {
+            "date": "date",
+            "timestamp": "date",
+
+            "close": "close",
+            "adj close": "close",
+
+            "open": "open",
+            "high": "high",
+            "low": "low",
+            "volume": "volume",
+
+            "ticker": "symbol",
+            "symbol": "symbol",
+        }
+
+        df = df.rename(columns=column_map)
+
+        # Required columns
+        required = {"date", "close", "symbol"}
+        missing = required - set(df.columns)
+
+        if missing:
+            raise ValueError(f"Missing required columns: {missing}")
+
+        # Convert types
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        df["close"] = pd.to_numeric(df["close"], errors="coerce")
+
+        # Drop bad rows
+        df = df.dropna(subset=["date", "close", "symbol"])
+
+        # Sort properly
+        df = df.sort_values(["symbol", "date"]).reset_index(drop=True)
+
+        return df
