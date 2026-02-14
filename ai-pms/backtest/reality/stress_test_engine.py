@@ -1,6 +1,6 @@
 """
 Phase-4.5 Reality Layer
-Institutional Stress Test Engine
+Institutional Stress Test Engine — FINAL STABLE
 """
 
 from __future__ import annotations
@@ -17,13 +17,23 @@ class StressTestEngine:
 
     # --------------------------------------------------
 
+    def _to_float(self, equity: pd.Series) -> pd.Series:
+        """
+        Ensure equity is float for safe arithmetic.
+        """
+        return equity.astype(float)
+
+    # --------------------------------------------------
+
     def crash_shock(self, equity: pd.Series) -> pd.Series:
         """
-        Instant −25% shock followed by normal path.
+        Instant −25% shock after a few periods.
         """
-        shocked = equity.copy()
+        shocked = self._to_float(equity.copy())
+
         if len(shocked) > 5:
             shocked.iloc[5:] = shocked.iloc[5:] * 0.75
+
         return shocked
 
     # --------------------------------------------------
@@ -32,8 +42,12 @@ class StressTestEngine:
         """
         High-variance sideways noise.
         """
+        equity = self._to_float(equity)
+
         noise = np.random.normal(0, 0.03, size=len(equity))
-        return equity * (1 + noise).cumprod() / (1 + noise).cumprod().iloc[0]
+        path = (1 + noise).cumprod()
+
+        return equity * path / path[0]
 
     # --------------------------------------------------
 
@@ -41,6 +55,8 @@ class StressTestEngine:
         """
         Gradual −40% decline.
         """
+        equity = self._to_float(equity)
+
         trend = np.linspace(1.0, 0.6, len(equity))
         return equity * trend
 
@@ -57,7 +73,7 @@ class StressTestEngine:
         if "equity" not in equity_curve.columns:
             raise ValueError("equity column required")
 
-        base = equity_curve["equity"]
+        base = self._to_float(equity_curve["equity"])
 
         out = pd.DataFrame(
             {
