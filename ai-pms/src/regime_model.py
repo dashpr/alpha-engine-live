@@ -1,6 +1,6 @@
 """
-Numerically stable Regime Detection Model
-CI-safe + research-grade fallback
+FINAL Regime Detection Model
+Numerically stable + backward compatible with Phase-3
 """
 
 from __future__ import annotations
@@ -23,13 +23,12 @@ class RegimeDetector:
     def _prepare_X(self, df: pd.DataFrame) -> np.ndarray:
         X = df[["ret_1d", "vol_20d", "mom_20_60"]].copy()
 
-        # replace inf/nan
         X = X.replace([np.inf, -np.inf], np.nan).dropna()
 
         if len(X) < 50:
             raise ValueError("Not enough data for regime detection")
 
-        # variance floor for numerical stability
+        # tiny noise → numerical stability
         X = X + np.random.normal(0, 1e-6, size=X.shape)
 
         return X.values
@@ -59,7 +58,7 @@ class RegimeDetector:
             self.fallback_mode = False
 
         except Exception:
-            # Fallback → volatility-based regime
+            # fallback → deterministic regime
             self.model = None
             self.fallback_mode = True
 
@@ -82,14 +81,37 @@ class RegimeDetector:
         return out.reset_index(drop=True)
 
     # --------------------------------------------------
-    # FALLBACK REGIME (volatility buckets)
+    # WEEKLY CONFIRMED REGIME  ⭐ (Phase-3 compatibility)
+    # --------------------------------------------------
+
+    def weekly_confirmed_regime(self, daily_probs: pd.DataFrame) -> pd.DataFrame:
+        """
+        Converts daily regime probabilities → weekly confirmed regime.
+        Keeps Phase-3 pipeline working.
+        """
+
+        df = daily_probs.copy()
+        df["week"] = pd.to_datetime(df["date"]).dt.to_period("W").apply(lambda r: r.start_time)
+
+        regime_cols = [c for c in df.columns if c.startswith("regime_")]
+
+        weekly = (
+            df.groupby("week")[regime_cols]
+            .mean()
+            .reset_index()
+            .rename(columns={"week": "date"})
+        )
+
+        return weekly
+
+    # --------------------------------------------------
+    # FALLBACK REGIME
     # --------------------------------------------------
 
     def _fallback_probabilities(self, df: pd.DataFrame) -> pd.DataFrame:
-        vol = df["vol_20d"].fillna(method="ffill")
+        vol = df["vol_20d"].ffill()
 
         q = vol.quantile([0.33, 0.66]).values
-
         regimes = np.zeros((len(vol), self.n_states))
 
         for i, v in enumerate(vol):
