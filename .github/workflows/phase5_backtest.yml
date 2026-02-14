@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - "ai-pms/phase5_frozen/**"
+      - "ai_pms/phase5_frozen/**"
       - "data/raw/**"
 
 jobs:
@@ -12,25 +12,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
-        run: |
+      - run: |
           python -m pip install --upgrade pip
           pip install pandas numpy
 
-      - name: Run Phase-5 frozen backtest
-        run: |
-          python ai-pms/phase5_frozen/run_backtest.py
+      - run: |
+          python -m ai_pms.phase5_frozen.run_backtest
 
-      - name: Upload backtest outputs
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: phase5-results
-          path: ai-pms/phase5_frozen/output/
+          path: ai_pms/phase5_frozen/output/
